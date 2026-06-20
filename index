@@ -1,0 +1,1438 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terminal Financiera · ACI — UdeSA</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#060c18;--bg2:#0b1220;--bg3:#101826;--bg4:#151f2e;
+  --border:#1c2e45;--accent:#00c8ff;--green:#00e87a;
+  --red:#ff3b5c;--yellow:#ffc300;--purple:#b06bff;
+  --text:#c5d3e0;--text2:#5a7080;--text3:#8a9bb0;
+}
+body{background:var(--bg);color:var(--text);font-family:'Courier New',monospace;font-size:13px;min-height:100vh}
+
+/* ── HEADER ── */
+.header{background:var(--bg2);border-bottom:2px solid var(--accent);padding:10px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.logo{color:var(--accent);font-size:15px;font-weight:bold;letter-spacing:3px;white-space:nowrap}
+.logo em{color:var(--green);font-style:normal}
+.search-row{display:flex;gap:8px;align-items:center;flex:1;flex-wrap:wrap}
+input[type=text]{background:var(--bg3);border:1px solid var(--border);color:var(--accent);padding:7px 12px;font-family:inherit;font-size:13px;text-transform:uppercase;outline:none;width:110px;letter-spacing:2px}
+input[type=text]:focus{border-color:var(--accent);box-shadow:0 0 8px rgba(0,200,255,.2)}
+select{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 10px;font-family:inherit;font-size:12px;outline:none;cursor:pointer}
+.btn{background:transparent;border:1px solid var(--accent);color:var(--accent);padding:6px 14px;cursor:pointer;font-family:inherit;font-size:12px;letter-spacing:1px;transition:.2s}
+.btn:hover{background:var(--accent);color:var(--bg)}
+.btn-g{border-color:var(--green);color:var(--green)}
+.btn-g:hover{background:var(--green);color:var(--bg)}
+.btn-r{border-color:var(--red);color:var(--red)}
+.btn-r:hover{background:var(--red);color:#fff}
+.btn-y{border-color:var(--yellow);color:var(--yellow)}
+.btn-y:hover{background:var(--yellow);color:var(--bg)}
+
+/* ── PORTFOLIO BAR ── */
+.port-bar{background:var(--bg2);border-bottom:1px solid var(--border);padding:8px 20px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-height:42px}
+.chip{background:var(--bg4);border:1px solid var(--border);padding:4px 10px;display:inline-flex;align-items:center;gap:8px;font-size:12px;cursor:default}
+.chip .ct{color:var(--accent);font-weight:bold;letter-spacing:1px}
+.chip .cw{color:var(--yellow)}
+.chip .cx{color:var(--red);cursor:pointer;font-size:14px;line-height:1}
+.chip .cx:hover{color:#ff0}
+.port-label{color:var(--text2);font-size:11px;letter-spacing:1px}
+
+/* ── TABS ── */
+.tabs{display:flex;background:var(--bg2);border-bottom:1px solid var(--border);overflow-x:auto}
+.tab{padding:10px 18px;cursor:pointer;border-bottom:2px solid transparent;color:var(--text2);font-size:11px;letter-spacing:2px;white-space:nowrap;transition:.2s}
+.tab:hover{color:var(--text)}
+.tab.active{border-bottom-color:var(--accent);color:var(--accent)}
+
+/* ── CONTENT ── */
+.content{padding:16px 20px}
+.panel{display:none}.panel.active{display:block}
+
+/* ── GRID ── */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px}
+.g5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+@media(max-width:900px){.g4,.g5{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr 1fr}.g2{grid-template-columns:1fr}}
+
+/* ── CARDS ── */
+.card{background:var(--bg2);border:1px solid var(--border);padding:14px}
+.card-t{color:var(--text2);font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px}
+.card-v{font-size:22px;font-weight:bold}
+.card-s{color:var(--text2);font-size:11px;margin-top:3px}
+.pos{color:var(--green)!important}.neg{color:var(--red)!important}.neu{color:var(--yellow)!important}
+
+/* ── CHARTS ── */
+.chart-box{background:var(--bg2);border:1px solid var(--border);padding:14px;margin-top:14px}
+.chart-t{color:var(--text2);font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.chart-legend{display:flex;gap:12px}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:11px}
+.legend-dot{width:10px;height:3px;display:inline-block}
+canvas{max-height:220px}
+canvas.tall{max-height:280px}
+
+/* ── TABLE ── */
+.tbl{width:100%;border-collapse:collapse;font-size:12px}
+.tbl th{color:var(--text2);text-align:left;padding:7px 10px;border-bottom:1px solid var(--border);font-size:10px;letter-spacing:1px;white-space:nowrap}
+.tbl td{padding:7px 10px;border-bottom:1px solid var(--bg4);white-space:nowrap}
+.tbl tr:hover td{background:var(--bg4)}
+.tbl td:first-child{color:var(--text3)}
+
+/* ── HEATMAP ── */
+.hm-wrap{overflow-x:auto;margin-top:10px}
+.hm-grid{display:inline-grid;gap:2px;padding:2px}
+.hm-cell{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;width:62px;height:38px;border:1px solid rgba(255,255,255,.05)}
+.hm-label{display:flex;align-items:center;justify-content:flex-end;padding-right:8px;font-size:11px;color:var(--text3);width:62px;height:38px}
+
+/* ── SIGNAL BADGE ── */
+.badge{display:inline-block;padding:2px 8px;font-size:10px;letter-spacing:1px;border:1px solid}
+.b-buy{border-color:var(--green);color:var(--green)}
+.b-sell{border-color:var(--red);color:var(--red)}
+.b-neu{border-color:var(--yellow);color:var(--yellow)}
+
+/* ── TICKER HEADER ── */
+.ticker-hdr{margin-bottom:14px;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.th-sym{font-size:26px;color:var(--accent);font-weight:bold;letter-spacing:2px}
+.th-name{color:var(--text2);font-size:13px}
+.th-price{font-size:30px;font-weight:bold}
+.th-chg{font-size:14px;padding:2px 8px}
+
+/* ── SECTION TITLE ── */
+.stitle{color:var(--text2);font-size:10px;letter-spacing:3px;border-bottom:1px solid var(--border);padding-bottom:7px;margin:18px 0 12px}
+.stitle:first-child{margin-top:0}
+
+/* ── LOADING / EMPTY ── */
+.loading,.empty{text-align:center;padding:60px 20px;color:var(--text2);font-size:13px}
+.loading{color:var(--accent)}
+.spin{display:inline-block;animation:spin 1s linear infinite;margin-right:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── STATUS BAR ── */
+.statusbar{background:var(--bg2);border-top:1px solid var(--border);padding:4px 20px;display:flex;gap:20px;color:var(--text2);font-size:11px;position:sticky;bottom:0}
+.statusbar b{color:var(--accent)}
+
+/* ── STRATEGY CONTROLS ── */
+.controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px;background:var(--bg2);border:1px solid var(--border);padding:12px}
+.ctl-label{color:var(--text2);font-size:11px;letter-spacing:1px}
+.ctl-input{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:5px 8px;font-family:inherit;font-size:12px;width:60px;outline:none;text-align:center}
+
+/* ── PROGRESS BAR ── */
+.pbar{height:4px;background:var(--bg4);margin-top:4px;border-radius:2px}
+.pfill{height:100%;border-radius:2px}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="logo">⬛ TERMINAL <em>ACI</em></div>
+  <div class="search-row">
+    <input type="text" id="ticker-input" placeholder="TICKER" maxlength="6" />
+    <button class="btn btn-g" onclick="addTicker()">+ AGREGAR</button>
+    <button class="btn" onclick="analyze()">▶ ANALIZAR</button>
+    <button class="btn-r btn" onclick="clearAll()">✕ LIMPIAR</button>
+    <span id="status-msg" style="color:var(--text2);font-size:11px;margin-left:8px"></span>
+  </div>
+</div>
+
+<!-- PORTFOLIO BAR -->
+<div class="port-bar" id="port-bar">
+  <span class="port-label">CARTERA →</span>
+  <span style="color:var(--text2);font-size:11px">Ingresá un ticker y hacé click en + AGREGAR</span>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('resumen')">📊 RESUMEN</div>
+  <div class="tab" onclick="switchTab('tecnico')">📈 ANÁLISIS TÉCNICO</div>
+  <div class="tab" onclick="switchTab('riesgo')">⚠️ RIESGO / VaR</div>
+  <div class="tab" onclick="switchTab('optimizacion')">🎯 OPTIMIZACIÓN</div>
+  <div class="tab" onclick="switchTab('backtest')">⏪ BACKTESTING</div>
+</div>
+
+<!-- CONTENT PANELS -->
+<div class="content">
+
+  <!-- ── TAB: RESUMEN ── -->
+  <div id="panel-resumen" class="panel active">
+    <div class="empty">Ingresá un ticker y hacé click en <b style="color:var(--accent)">▶ ANALIZAR</b></div>
+  </div>
+
+  <!-- ── TAB: TÉCNICO ── -->
+  <div id="panel-tecnico" class="panel">
+    <div class="empty">Analizá un ticker primero.</div>
+  </div>
+
+  <!-- ── TAB: RIESGO ── -->
+  <div id="panel-riesgo" class="panel">
+    <div class="empty">Analizá un ticker primero.</div>
+  </div>
+
+  <!-- ── TAB: OPTIMIZACIÓN ── -->
+  <div id="panel-optimizacion" class="panel">
+    <div class="empty">Agregá 2 o más tickers para ver optimización de cartera.</div>
+  </div>
+
+  <!-- ── TAB: BACKTESTING ── -->
+  <div id="panel-backtest" class="panel">
+    <div class="empty">Analizá un ticker primero.</div>
+  </div>
+
+</div>
+
+<!-- STATUS BAR -->
+<div class="statusbar">
+  <span>DATOS: <b>FMP API</b></span>
+  <span>RF: <b>4.5%</b></span>
+  <span>HORIZONTE: <b>1 AÑO</b></span>
+  <span id="sb-time"></span>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════
+const API_KEY = 'ATs53ltdtP1XcU7YnooOEDzwgRQk737E';
+const BASE    = 'https://financialmodelingprep.com/api/v3';
+const RF      = 0.045; // tasa libre de riesgo anual
+
+// State
+let state = {
+  tickers: [],
+  data: {},      // {ticker: {prices, returns, quote, profile}}
+  spy: null,     // benchmark returns
+  charts: {},    // chart instances
+  activeTab: 'resumen'
+};
+
+// Status bar clock
+setInterval(() => {
+  document.getElementById('sb-time').innerHTML =
+    'HORA: <b>' + new Date().toLocaleTimeString('es-AR') + '</b>';
+}, 1000);
+
+// ═══════════════════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════════════════
+function switchTab(t) {
+  state.activeTab = t;
+  document.querySelectorAll('.tab').forEach((el,i) => {
+    const tabs = ['resumen','tecnico','riesgo','optimizacion','backtest'];
+    el.classList.toggle('active', tabs[i] === t);
+  });
+  document.querySelectorAll('.panel').forEach(el => el.classList.remove('active'));
+  document.getElementById('panel-' + t).classList.add('active');
+}
+
+function setStatus(msg, color='var(--text2)') {
+  const el = document.getElementById('status-msg');
+  el.style.color = color;
+  el.textContent = msg;
+}
+
+function fmt(v, dec=2) { return v == null ? '—' : Number(v).toFixed(dec); }
+function fmtPct(v, dec=2) { if(v==null) return '—'; const s=Number(v)*100; return (s>=0?'+':'')+s.toFixed(dec)+'%'; }
+function fmtM(v) { if(!v) return '—'; if(v>1e12) return '$'+(v/1e12).toFixed(2)+'T'; if(v>1e9) return '$'+(v/1e9).toFixed(2)+'B'; if(v>1e6) return '$'+(v/1e6).toFixed(2)+'M'; return '$'+v.toFixed(0); }
+function colCls(v) { return v > 0 ? 'pos' : v < 0 ? 'neg' : 'neu'; }
+function colStr(v) { return v > 0 ? 'var(--green)' : v < 0 ? 'var(--red)' : 'var(--yellow)'; }
+function destroyChart(id) { if(state.charts[id]) { state.charts[id].destroy(); delete state.charts[id]; } }
+
+function renderChart(id, config) {
+  destroyChart(id);
+  const ctx = document.getElementById(id)?.getContext('2d');
+  if(!ctx) return;
+  state.charts[id] = new Chart(ctx, config);
+}
+
+// ═══════════════════════════════════════════════════
+// PORTFOLIO MANAGEMENT
+// ═══════════════════════════════════════════════════
+function addTicker() {
+  const val = document.getElementById('ticker-input').value.trim().toUpperCase();
+  if(!val) return;
+  if(state.tickers.includes(val)) { setStatus('Ya está en la cartera', 'var(--yellow)'); return; }
+  if(state.tickers.length >= 6) { setStatus('Máximo 6 tickers', 'var(--red)'); return; }
+  state.tickers.push(val);
+  document.getElementById('ticker-input').value = '';
+  renderPortBar();
+  setStatus(val + ' agregado', 'var(--green)');
+}
+
+function removeTicker(t) {
+  state.tickers = state.tickers.filter(x => x !== t);
+  delete state.data[t];
+  renderPortBar();
+}
+
+function clearAll() {
+  state.tickers = [];
+  state.data = {};
+  state.spy = null;
+  renderPortBar();
+  ['resumen','tecnico','riesgo','optimizacion','backtest'].forEach(t =>
+    document.getElementById('panel-'+t).innerHTML = '<div class="empty">Ingresá un ticker y hacé click en <b style="color:var(--accent)">▶ ANALIZAR</b></div>'
+  );
+  setStatus('');
+}
+
+function renderPortBar() {
+  const bar = document.getElementById('port-bar');
+  if(!state.tickers.length) {
+    bar.innerHTML = '<span class="port-label">CARTERA →</span><span style="color:var(--text2);font-size:11px">Ingresá un ticker y hacé click en + AGREGAR</span>';
+    return;
+  }
+  const w = Math.round(100 / state.tickers.length);
+  bar.innerHTML = '<span class="port-label">CARTERA →</span>' +
+    state.tickers.map(t =>
+      `<div class="chip">
+        <span class="ct">${t}</span>
+        <span class="cw">${w}%</span>
+        <span class="cx" onclick="removeTicker('${t}')">✕</span>
+      </div>`
+    ).join('') +
+    `<span style="color:var(--text2);font-size:11px;margin-left:8px">Peso uniforme · Total: ${state.tickers.length} activos</span>`;
+}
+
+document.getElementById('ticker-input').addEventListener('keydown', e => {
+  if(e.key === 'Enter') addTicker();
+});
+
+// ═══════════════════════════════════════════════════
+// API CALLS
+// ═══════════════════════════════════════════════════
+async function fetchQuote(ticker) {
+  const r = await fetch(`${BASE}/quote/${ticker}?apikey=${API_KEY}`);
+  const d = await r.json();
+  return d[0] || null;
+}
+
+async function fetchHistory(ticker, fromDate) {
+  const r = await fetch(`${BASE}/historical-price-full/${ticker}?from=${fromDate}&apikey=${API_KEY}`);
+  const d = await r.json();
+  if(!d.historical) return null;
+  // reverse to chronological order
+  return d.historical.slice().reverse();
+}
+
+async function fetchProfile(ticker) {
+  const r = await fetch(`${BASE}/profile/${ticker}?apikey=${API_KEY}`);
+  const d = await r.json();
+  return d[0] || null;
+}
+
+// ═══════════════════════════════════════════════════
+// CALCULATIONS
+// ═══════════════════════════════════════════════════
+
+// Daily arithmetic returns
+function calcReturns(closes) {
+  const ret = [];
+  for(let i=1;i<closes.length;i++) ret.push((closes[i]-closes[i-1])/closes[i-1]);
+  return ret;
+}
+
+// EMA
+function calcEMA(data, period) {
+  const k = 2/(period+1);
+  const ema = [data[0]];
+  for(let i=1;i<data.length;i++) ema.push(data[i]*k + ema[i-1]*(1-k));
+  return ema;
+}
+
+// RSI (Wilder)
+function calcRSI(closes, period=14) {
+  const rsi=[], gains=[], losses=[];
+  for(let i=1;i<closes.length;i++){
+    const d=closes[i]-closes[i-1];
+    gains.push(d>0?d:0); losses.push(d<0?-d:0);
+  }
+  let ag=gains.slice(0,period).reduce((a,b)=>a+b)/period;
+  let al=losses.slice(0,period).reduce((a,b)=>a+b)/period;
+  rsi.push(al===0?100:100-100/(1+ag/al));
+  for(let i=period;i<gains.length;i++){
+    ag=(ag*(period-1)+gains[i])/period;
+    al=(al*(period-1)+losses[i])/period;
+    rsi.push(al===0?100:100-100/(1+ag/al));
+  }
+  return rsi;
+}
+
+// MACD
+function calcMACD(closes, fast=12, slow=26, sig=9) {
+  const ef=calcEMA(closes,fast), es=calcEMA(closes,slow);
+  const macd=ef.map((v,i)=>v-es[i]).slice(slow-1);
+  const signal=calcEMA(macd,sig);
+  const hist=macd.map((v,i)=>i<sig-1?null:v-signal[i-(sig-1)]);
+  return {macd, signal, hist};
+}
+
+// Bollinger Bands
+function calcBollinger(closes, period=20, mult=2) {
+  const mid=[],up=[],dn=[];
+  for(let i=period;i<=closes.length;i++){
+    const sl=closes.slice(i-period,i);
+    const m=sl.reduce((a,b)=>a+b)/period;
+    const sd=Math.sqrt(sl.reduce((a,b)=>a+(b-m)**2,0)/period);
+    mid.push(m); up.push(m+mult*sd); dn.push(m-mult*sd);
+  }
+  return {mid,up,dn};
+}
+
+// Stochastic %K
+function calcStochastic(closes, highs, lows, period=14, smoothK=3) {
+  const k=[];
+  for(let i=period-1;i<closes.length;i++){
+    const h=Math.max(...highs.slice(i-period+1,i+1));
+    const l=Math.min(...lows.slice(i-period+1,i+1));
+    k.push(h===l?50:((closes[i]-l)/(h-l))*100);
+  }
+  // smooth %K
+  const sk=[];
+  for(let i=smoothK-1;i<k.length;i++) sk.push(k.slice(i-smoothK+1,i+1).reduce((a,b)=>a+b)/smoothK);
+  const sd=calcEMA(sk,3); // %D
+  return {k:sk,d:sd};
+}
+
+// CCI
+function calcCCI(closes, highs, lows, period=20) {
+  const cci=[];
+  for(let i=period-1;i<closes.length;i++){
+    const tp=closes.slice(i-period+1,i+1).map((_,j)=>(highs[i-period+1+j]+lows[i-period+1+j]+closes[i-period+1+j])/3);
+    const m=tp.reduce((a,b)=>a+b)/period;
+    const md=tp.reduce((a,b)=>a+Math.abs(b-m),0)/period;
+    cci.push(md===0?0:(tp[tp.length-1]-m)/(0.015*md));
+  }
+  return cci;
+}
+
+// OBV
+function calcOBV(closes, volumes) {
+  const obv=[0];
+  for(let i=1;i<closes.length;i++){
+    const prev=obv[i-1];
+    if(closes[i]>closes[i-1]) obv.push(prev+volumes[i]);
+    else if(closes[i]<closes[i-1]) obv.push(prev-volumes[i]);
+    else obv.push(prev);
+  }
+  return obv;
+}
+
+// Momentum (Rate of Change)
+function calcMomentum(closes, period=14) {
+  const m=[];
+  for(let i=period;i<closes.length;i++) m.push((closes[i]/closes[i-period]-1)*100);
+  return m;
+}
+
+// VaR calculations
+function calcVaR(returns, confidence=0.95, capital=1000000, horizon=1) {
+  const n=returns.length;
+  const mean=returns.reduce((a,b)=>a+b)/n;
+  const std=Math.sqrt(returns.reduce((a,b)=>a+(b-mean)**2,0)/n);
+  // Normal quantile (PPF)
+  const z=confidence===0.99?-2.3263:-1.6449;
+  const muT=mean*horizon, sigT=std*Math.sqrt(horizon);
+  const varP=-(muT+z*sigT)*capital;
+
+  // Historical
+  const sorted=[...returns].sort((a,b)=>a-b);
+  const idx=Math.floor((1-confidence)*n);
+  const varH=-sorted[idx]*capital*Math.sqrt(horizon);
+
+  // CVaR
+  const tail=sorted.slice(0,idx);
+  const cvarH=tail.length?-tail.reduce((a,b)=>a+b)/tail.length*capital*Math.sqrt(horizon):varH*1.3;
+
+  // Monte Carlo VaR
+  const sims=[];
+  for(let i=0;i<10000;i++){
+    const u1=Math.random(),u2=Math.random();
+    const z2=Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2);
+    sims.push(mean+std*z2);
+  }
+  sims.sort((a,b)=>a-b);
+  const varMC=-sims[Math.floor((1-confidence)*sims.length)]*capital*Math.sqrt(horizon);
+
+  return {varP, varH, varMC, cvarH, mean, std};
+}
+
+// Risk metrics
+function calcMetrics(returns) {
+  const n=returns.length;
+  const mean=returns.reduce((a,b)=>a+b)/n;
+  const std=Math.sqrt(returns.reduce((a,b)=>a+(b-mean)**2,0)/n);
+  const annRet=(1+mean)**252-1;
+  const annVol=std*Math.sqrt(252);
+  const sharpe=(annRet-RF)/annVol;
+  const rfDaily=RF/252;
+  const down=returns.filter(r=>r<rfDaily);
+  const dsVol=down.length?Math.sqrt(down.reduce((a,b)=>a+(b-rfDaily)**2,0)/down.length)*Math.sqrt(252):annVol;
+  const sortino=(annRet-RF)/dsVol;
+  // Cumulative for drawdown
+  let cum=1,peak=1,mdd=0;
+  const cumArr=[1],ddArr=[0];
+  for(const r of returns){
+    cum*=(1+r); cumArr.push(cum);
+    if(cum>peak) peak=cum;
+    const dd=(cum-peak)/peak;
+    if(dd<mdd) mdd=dd;
+    ddArr.push(dd);
+  }
+  const total=cum-1;
+  const yrs=n/252;
+  const cagr=cum**(1/yrs)-1;
+  const calmar=mdd<0?cagr/Math.abs(mdd):null;
+  const hits=returns.filter(r=>r>0).length/n;
+  return {annRet,annVol,sharpe,sortino,mdd,cagr,calmar,hits,total,cumArr,ddArr};
+}
+
+// Beta & Alpha (CAPM)
+function calcBeta(assetRet, bmkRet) {
+  const n=Math.min(assetRet.length,bmkRet.length);
+  const a=assetRet.slice(-n), b=bmkRet.slice(-n);
+  const ma=a.reduce((s,v)=>s+v)/n, mb=b.reduce((s,v)=>s+v)/n;
+  const cov=a.reduce((s,v,i)=>s+(v-ma)*(b[i]-mb),0)/n;
+  const vb=b.reduce((s,v)=>s+(v-mb)**2,0)/n;
+  const beta=cov/vb;
+  const alphaD=ma-beta*mb;
+  const alphaA=alphaD*252;
+  return {beta,alphaA};
+}
+
+// Pearson correlation
+function correlation(a, b) {
+  const n=Math.min(a.length,b.length);
+  const x=a.slice(-n), y=b.slice(-n);
+  const mx=x.reduce((s,v)=>s+v)/n, my=y.reduce((s,v)=>s+v)/n;
+  const num=x.reduce((s,v,i)=>s+(v-mx)*(y[i]-my),0);
+  const dx=Math.sqrt(x.reduce((s,v)=>s+(v-mx)**2,0));
+  const dy=Math.sqrt(y.reduce((s,v)=>s+(v-my)**2,0));
+  return num/(dx*dy||1);
+}
+
+// SMA Backtest
+function backtestSMA(prices, returns, s=20, l=50, cost=0.0015) {
+  const eq=[1], bh=[1];
+  let pos=0, dates=[];
+  for(let i=l;i<prices.length-1;i++){
+    const sma=prices.slice(i-s,i).reduce((a,b)=>a+b)/s;
+    const lma=prices.slice(i-l,i).reduce((a,b)=>a+b)/l;
+    const newPos=sma>lma?1:-1;
+    const ret=returns[i]||0;
+    let sret=newPos*ret;
+    if(newPos!==pos){sret-=cost;pos=newPos;}
+    eq.push(eq[eq.length-1]*(1+sret));
+    bh.push(bh[bh.length-1]*(1+ret));
+  }
+  return {eq,bh};
+}
+
+// RSI Backtest
+function backtestRSI(prices, returns, period=14, ob=70, os=30, cost=0.0015) {
+  const rsi=calcRSI(prices,period);
+  const startIdx=period;
+  const eq=[1], bh=[1];
+  let pos=0;
+  for(let i=0;i<rsi.length-1;i++){
+    const r=rsi[i], ret=returns[startIdx+i]||0;
+    let newPos=pos;
+    if(pos===0&&r<os) newPos=1;
+    else if(pos===1&&r>ob) newPos=0;
+    let sret=newPos*ret;
+    if(newPos!==pos){sret-=cost;pos=newPos;}
+    eq.push(eq[eq.length-1]*(1+sret));
+    bh.push(bh[bh.length-1]*(1+ret));
+  }
+  return {eq,bh};
+}
+
+// Momentum Backtest
+function backtestMomentum(prices, returns, win=126, cost=0.0015) {
+  const eq=[1], bh=[1];
+  let pos=0;
+  for(let i=win;i<prices.length-1;i++){
+    const mom=prices[i]/prices[i-win]-1;
+    const newPos=mom>0?1:-1;
+    const ret=returns[i]||0;
+    let sret=newPos*ret;
+    if(newPos!==pos){sret-=cost;pos=newPos;}
+    eq.push(eq[eq.length-1]*(1+sret));
+    bh.push(bh[bh.length-1]*(1+ret));
+  }
+  return {eq,bh};
+}
+
+// Efficient frontier (Monte Carlo)
+function efficientFrontier(retArrays, tickers, nsim=3000) {
+  const n=retArrays.length;
+  const annR=retArrays.map(r=>{const m=r.reduce((a,b)=>a+b)/r.length;return (1+m)**252-1;});
+  // Cov matrix (annualized)
+  const cov=[];
+  for(let i=0;i<n;i++){
+    cov[i]=[];
+    for(let j=0;j<n;j++){
+      const L=Math.min(retArrays[i].length,retArrays[j].length);
+      const a=retArrays[i].slice(-L),b=retArrays[j].slice(-L);
+      const ma=a.reduce((s,v)=>s+v)/L, mb=b.reduce((s,v)=>s+v)/L;
+      cov[i][j]=a.reduce((s,v,k)=>s+(v-ma)*(b[k]-mb),0)/L*252;
+    }
+  }
+  const pts=[];
+  for(let p=0;p<nsim;p++){
+    const w=new Array(n).fill(0).map(()=>Math.random());
+    const ws=w.reduce((a,b)=>a+b);
+    const wn=w.map(v=>v/ws);
+    const r=wn.reduce((s,wi,i)=>s+wi*annR[i],0);
+    let v=0;
+    for(let i=0;i<n;i++) for(let j=0;j<n;j++) v+=wn[i]*wn[j]*cov[i][j];
+    pts.push({r,v:Math.sqrt(v),s:(r-RF)/Math.sqrt(v),w:wn});
+  }
+  return pts;
+}
+
+// Return distribution (histogram buckets)
+function histogram(returns, bins=30) {
+  const mn=Math.min(...returns), mx=Math.max(...returns);
+  const bw=(mx-mn)/bins;
+  const counts=new Array(bins).fill(0);
+  const labels=[];
+  for(let i=0;i<bins;i++) labels.push(((mn+i*bw)*100).toFixed(2)+'%');
+  for(const r of returns){
+    const idx=Math.min(Math.floor((r-mn)/bw),bins-1);
+    counts[idx]++;
+  }
+  return {counts,labels,mn,mx,bw};
+}
+
+// Hurst exponent
+function calcHurst(prices) {
+  const logs=prices.map(p=>Math.log(p));
+  const n=logs.length;
+  if(n<30) return null;
+  const ranges=[8,16,32,Math.min(64,n)];
+  const pts=[];
+  for(const r of ranges){
+    const chunks=Math.floor(n/r);
+    let rs=0;
+    for(let c=0;c<chunks;c++){
+      const sl=logs.slice(c*r,(c+1)*r);
+      const m=sl.reduce((a,b)=>a+b)/r;
+      const dev=sl.map((_,i)=>sl.slice(0,i+1).reduce((a,b)=>a+b)/(i+1)-m);
+      const R=Math.max(...dev)-Math.min(...dev);
+      const S=Math.sqrt(sl.reduce((a,v)=>a+(v-m)**2,0)/r);
+      if(S>0) rs+=R/S;
+    }
+    if(rs>0) pts.push({x:Math.log(r),y:Math.log(rs/chunks)});
+  }
+  if(pts.length<2) return 0.5;
+  const mx=pts.reduce((a,b)=>a+b.x,0)/pts.length;
+  const my=pts.reduce((a,b)=>a+b.y,0)/pts.length;
+  const num=pts.reduce((a,p)=>a+(p.x-mx)*(p.y-my),0);
+  const den=pts.reduce((a,p)=>a+(p.x-mx)**2,0);
+  return num/den;
+}
+
+// ═══════════════════════════════════════════════════
+// MAIN ANALYZE FUNCTION
+// ═══════════════════════════════════════════════════
+async function analyze() {
+  if(!state.tickers.length) { setStatus('Agregá al menos un ticker', 'var(--red)'); return; }
+  setStatus('⏳ Cargando datos...', 'var(--accent)');
+
+  // Date 1 year ago
+  const from = new Date();
+  from.setFullYear(from.getFullYear()-1);
+  const fromStr = from.toISOString().split('T')[0];
+
+  try {
+    // Fetch all tickers + SPY
+    const allSymbols = [...new Set([...state.tickers, 'SPY'])];
+    const fetches = allSymbols.map(async t => {
+      const [hist, quote, profile] = await Promise.all([
+        fetchHistory(t, fromStr),
+        fetchQuote(t),
+        fetchProfile(t)
+      ]);
+      return {t, hist, quote, profile};
+    });
+
+    const results = await Promise.all(fetches);
+
+    results.forEach(({t, hist, quote, profile}) => {
+      if(!hist || hist.length < 20) return;
+      const prices  = hist.map(d => d.adjClose || d.close);
+      const highs   = hist.map(d => d.high);
+      const lows    = hist.map(d => d.low);
+      const volumes = hist.map(d => d.volume);
+      const dates   = hist.map(d => d.date);
+      const returns = calcReturns(prices);
+
+      if(t === 'SPY') {
+        state.spy = returns;
+      } else {
+        state.data[t] = {prices, highs, lows, volumes, dates, returns, quote, profile};
+      }
+    });
+
+    setStatus('✓ Datos cargados', 'var(--green)');
+    renderAll();
+  } catch(e) {
+    setStatus('Error: ' + e.message, 'var(--red)');
+    console.error(e);
+  }
+}
+
+function renderAll() {
+  const tickers = state.tickers.filter(t => state.data[t]);
+  if(!tickers.length) return;
+  renderResumen(tickers);
+  renderTecnico(tickers[0]);
+  renderRiesgo(tickers);
+  renderOptimizacion(tickers);
+  renderBacktest(tickers[0]);
+}
+
+// ═══════════════════════════════════════════════════
+// TAB 1 — RESUMEN
+// ═══════════════════════════════════════════════════
+function renderResumen(tickers) {
+  const el = document.getElementById('panel-resumen');
+
+  // If multiple tickers, show comparison table + individual cards
+  const primary = tickers[0];
+  const d = state.data[primary];
+  if(!d) return;
+
+  const q = d.quote || {};
+  const p = d.profile || {};
+  const prices = d.prices;
+  const dates  = d.dates;
+  const returns = d.returns;
+
+  // Period returns
+  const pct = (arr, days) => {
+    const n = Math.min(days, arr.length-1);
+    return (arr[arr.length-1]/arr[arr.length-1-n]-1);
+  };
+
+  // Build HTML
+  let html = '';
+
+  // Ticker header
+  const chg = q.changesPercentage || 0;
+  html += `<div class="ticker-hdr">
+    <span class="th-sym">${primary}</span>
+    <span class="th-name">${p.companyName || ''}</span>
+    <span class="th-price">$${fmt(q.price)}</span>
+    <span class="th-chg ${colCls(chg)}">${fmtPct(chg/100)}</span>
+    ${p.sector ? `<span style="color:var(--text2);font-size:11px">${p.sector} · ${p.industry||''}</span>` : ''}
+  </div>`;
+
+  // Key metrics grid
+  const metrics = [
+    {l:'PRECIO', v:'$'+fmt(q.price), s:q.yearLow&&q.yearHigh?`52w: $${fmt(q.yearLow)} — $${fmt(q.yearHigh)}`:''},
+    {l:'CAMBIO HOY', v:fmtPct(chg/100), s:q.change?`$${fmt(q.change)} abs`:'', c:colCls(chg)},
+    {l:'MKT CAP', v:fmtM(q.marketCap), s:''},
+    {l:'P/E RATIO', v:fmt(q.pe,1), s:'Price / Earnings'},
+    {l:'BETA', v:fmt(q.beta), s:'vs S&P 500'},
+    {l:'VOL 1Y', v:fmtPct(calcMetrics(returns).annVol), s:'Anualizada'},
+    {l:'SHARPE', v:fmt(calcMetrics(returns).sharpe), s:'Rf=4.5% | 1 año'},
+    {l:'MAX DD', v:fmtPct(calcMetrics(returns).mdd), s:'Peor caída', c:'neg'},
+  ];
+
+  html += `<div class="g4">`;
+  metrics.forEach(m => {
+    html += `<div class="card">
+      <div class="card-t">${m.l}</div>
+      <div class="card-v ${m.c||''}">${m.v}</div>
+      ${m.s?`<div class="card-s">${m.s}</div>`:''}
+    </div>`;
+  });
+  html += `</div>`;
+
+  // Price chart
+  html += `<div class="chart-box"><div class="chart-t">PRECIO — 1 AÑO</div><canvas id="ch-price" class="tall"></canvas></div>`;
+
+  // Comparison table if multiple tickers
+  if(tickers.length > 1) {
+    html += `<div class="stitle">COMPARACIÓN DE ACTIVOS</div>
+    <div class="card"><table class="tbl"><thead><tr>
+      <th>TICKER</th><th>PRECIO</th><th>1M</th><th>3M</th><th>6M</th><th>1Y</th>
+      <th>VOL ANUAL</th><th>SHARPE</th><th>BETA</th><th>MAX DD</th>
+    </tr></thead><tbody>`;
+    tickers.forEach(t => {
+      const td = state.data[t];
+      if(!td) return;
+      const tq = td.quote || {};
+      const tm = calcMetrics(td.returns);
+      const tb = state.spy ? calcBeta(td.returns, state.spy) : {beta:'—'};
+      html += `<tr>
+        <td style="color:var(--accent);font-weight:bold">${t}</td>
+        <td>$${fmt(tq.price)}</td>
+        <td class="${colCls(pct(td.prices,21))}">${fmtPct(pct(td.prices,21))}</td>
+        <td class="${colCls(pct(td.prices,63))}">${fmtPct(pct(td.prices,63))}</td>
+        <td class="${colCls(pct(td.prices,126))}">${fmtPct(pct(td.prices,126))}</td>
+        <td class="${colCls(pct(td.prices,252))}">${fmtPct(pct(td.prices,252))}</td>
+        <td>${fmtPct(tm.annVol)}</td>
+        <td class="${colCls(tm.sharpe)}">${fmt(tm.sharpe)}</td>
+        <td>${typeof tb.beta === 'number' ? fmt(tb.beta) : '—'}</td>
+        <td class="neg">${fmtPct(tm.mdd)}</td>
+      </tr>`;
+    });
+    html += `</tbody></table></div>`;
+  } else {
+    // Single ticker: performance + profile
+    html += `<div class="g2" style="margin-top:14px">
+      <div class="card">
+        <div class="card-t">RETORNOS POR PERÍODO</div>
+        <table class="tbl" style="margin-top:8px"><thead><tr><th>PERÍODO</th><th>RETORNO</th><th>PRECIO INICIO</th></tr></thead><tbody>
+        ${[['1 Semana',5],['1 Mes',21],['3 Meses',63],['6 Meses',126],['1 Año',252]].map(([l,d2])=>{
+          const r=pct(prices,d2);
+          return `<tr><td>${l}</td><td class="${colCls(r)}">${fmtPct(r)}</td><td>$${fmt(prices[Math.max(0,prices.length-1-d2)])}</td></tr>`;
+        }).join('')}
+        </tbody></table>
+      </div>
+      <div class="card">
+        <div class="card-t">PERFIL</div>
+        ${p.companyName?`<div style="color:var(--text);font-size:13px;font-weight:bold;margin-bottom:8px">${p.companyName}</div>`:''}
+        ${p.sector?`<div style="color:var(--text2);font-size:11px;margin-bottom:4px">Sector: <span style="color:var(--accent)">${p.sector}</span></div>`:''}
+        ${p.industry?`<div style="color:var(--text2);font-size:11px;margin-bottom:4px">Industria: <span style="color:var(--text3)">${p.industry}</span></div>`:''}
+        ${p.country?`<div style="color:var(--text2);font-size:11px;margin-bottom:8px">País: ${p.country}</div>`:''}
+        ${p.description?`<div style="color:var(--text2);font-size:11px;line-height:1.6;max-height:100px;overflow:hidden">${p.description.substring(0,300)}...</div>`:''}
+        ${p.website?`<div style="margin-top:8px"><a href="${p.website}" target="_blank" style="color:var(--accent);font-size:11px">${p.website}</a></div>`:''}
+      </div>
+    </div>`;
+  }
+
+  el.innerHTML = html;
+
+  // Render price chart (all tickers)
+  const datasets = tickers.filter(t => state.data[t]).map((t, i) => {
+    const colors = ['#00c8ff','#00e87a','#ffc300','#ff3b5c','#b06bff','#ff9500'];
+    const td = state.data[t];
+    const base = td.prices[0];
+    return {
+      label: t,
+      data: td.prices.map(p2 => (p2/base-1)*100),
+      borderColor: colors[i],
+      backgroundColor: 'transparent',
+      borderWidth: 1.5,
+      pointRadius: 0,
+      tension: 0.1
+    };
+  });
+
+  renderChart('ch-price', {
+    type: 'line',
+    data: { labels: d.dates, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: { legend: { labels: { color: '#5a7080', font: {size:11} } } },
+      scales: {
+        x: { ticks: { color:'#5a7080', maxTicksLimit:8, font:{size:10} }, grid: { color:'rgba(255,255,255,.04)' } },
+        y: { ticks: { color:'#5a7080', font:{size:10}, callback: v => v.toFixed(0)+'%' }, grid: { color:'rgba(255,255,255,.04)' } }
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// TAB 2 — ANÁLISIS TÉCNICO
+// ═══════════════════════════════════════════════════
+function renderTecnico(ticker) {
+  const el = document.getElementById('panel-tecnico');
+  const d = state.data[ticker];
+  if(!d) return;
+
+  const { prices, highs, lows, volumes, dates } = d;
+  const rsi = calcRSI(prices);
+  const macd = calcMACD(prices);
+  const bb = calcBollinger(prices);
+  const stoch = calcStochastic(prices, highs, lows);
+  const cci = calcCCI(prices, highs, lows);
+  const obv = calcOBV(prices, volumes);
+  const mom = calcMomentum(prices);
+  const hurst = calcHurst(prices);
+
+  const lastRSI = rsi[rsi.length-1];
+  const lastMACD = macd.macd[macd.macd.length-1];
+  const lastSig = macd.signal[macd.signal.length-1];
+  const lastBBup = bb.up[bb.up.length-1];
+  const lastBBdn = bb.dn[bb.dn.length-1];
+  const lastPrice = prices[prices.length-1];
+  const lastMom = mom[mom.length-1];
+  const lastCCI = cci[cci.length-1];
+  const lastStochK = stoch.k[stoch.k.length-1];
+
+  // Signal logic
+  const sig = (cond) => cond === true ? '<span class="badge b-buy">COMPRA</span>' :
+                         cond === false ? '<span class="badge b-sell">VENTA</span>' :
+                         '<span class="badge b-neu">NEUTRAL</span>';
+
+  const rsiSig  = lastRSI < 30 ? true : lastRSI > 70 ? false : null;
+  const macdSig = lastMACD > lastSig ? true : lastMACD < lastSig ? false : null;
+  const bbSig   = lastPrice < lastBBdn ? true : lastPrice > lastBBup ? false : null;
+  const momSig  = lastMom > 0 ? true : lastMom < 0 ? false : null;
+  const cciSig  = lastCCI < -100 ? true : lastCCI > 100 ? false : null;
+  const stSig   = lastStochK < 20 ? true : lastStochK > 80 ? false : null;
+
+  // Summary cards
+  let html = `<div class="stitle">SEÑALES — ${ticker}</div>`;
+  html += `<div class="g3">
+    <div class="card"><div class="card-t">RSI (14)</div><div class="card-v ${lastRSI<30?'pos':lastRSI>70?'neg':'neu'}">${fmt(lastRSI)}</div><div class="card-s">${lastRSI<30?'SOBREVENDIDO':lastRSI>70?'SOBRECOMPRADO':'NEUTRAL (30–70)'}</div></div>
+    <div class="card"><div class="card-t">MACD (12,26,9)</div><div class="card-v ${colCls(lastMACD-lastSig)}">${fmt(lastMACD-lastSig,4)}</div><div class="card-s">Histograma · ${lastMACD>lastSig?'Alcista':'Bajista'}</div></div>
+    <div class="card"><div class="card-t">BOLLINGER %B</div><div class="card-v">${fmt((lastPrice-lastBBdn)/(lastBBup-lastBBdn)*100,1)}%</div><div class="card-s">Posición en banda (0–100)</div></div>
+    <div class="card"><div class="card-t">MOMENTUM (14)</div><div class="card-v ${colCls(lastMom)}">${fmt(lastMom)}%</div><div class="card-s">Rate of Change</div></div>
+    <div class="card"><div class="card-t">CCI (20)</div><div class="card-v ${lastCCI>100?'neg':lastCCI<-100?'pos':'neu'}">${fmt(lastCCI)}</div><div class="card-s">${lastCCI>100?'SOBRECOMPRADO':lastCCI<-100?'SOBREVENDIDO':'NEUTRAL'}</div></div>
+    <div class="card"><div class="card-t">ESTOCÁSTICO %K</div><div class="card-v ${lastStochK<20?'pos':lastStochK>80?'neg':'neu'}">${fmt(lastStochK)}</div><div class="card-s">${lastStochK<20?'SOBREVENDIDO':lastStochK>80?'SOBRECOMPRADO':'NEUTRAL'}</div></div>
+  </div>`;
+
+  // Señales table
+  html += `<div class="g2" style="margin-top:14px">
+    <div class="card">
+      <div class="card-t">RESUMEN DE SEÑALES</div>
+      <table class="tbl" style="margin-top:8px"><thead><tr><th>INDICADOR</th><th>VALOR</th><th>SEÑAL</th></tr></thead><tbody>
+        <tr><td>RSI (14)</td><td class="${lastRSI<30?'pos':lastRSI>70?'neg':''}">${fmt(lastRSI)}</td><td>${sig(rsiSig)}</td></tr>
+        <tr><td>MACD</td><td class="${colCls(lastMACD-lastSig)}">${fmt(lastMACD-lastSig,4)}</td><td>${sig(macdSig)}</td></tr>
+        <tr><td>Bollinger Bands</td><td>$${fmt(lastBBdn)} – $${fmt(lastBBup)}</td><td>${sig(bbSig)}</td></tr>
+        <tr><td>Momentum (14)</td><td class="${colCls(lastMom)}">${fmt(lastMom)}%</td><td>${sig(momSig)}</td></tr>
+        <tr><td>CCI (20)</td><td class="${lastCCI>100?'neg':lastCCI<-100?'pos':''}">${fmt(lastCCI)}</td><td>${sig(cciSig)}</td></tr>
+        <tr><td>Estocástico %K</td><td class="${lastStochK<20?'pos':lastStochK>80?'neg':''}">${fmt(lastStochK)}</td><td>${sig(stSig)}</td></tr>
+      </tbody></table>
+    </div>
+    <div class="card">
+      <div class="card-t">INDICADORES ADICIONALES</div>
+      <table class="tbl" style="margin-top:8px"><thead><tr><th>MÉTRICA</th><th>VALOR</th><th>INTERPRETACIÓN</th></tr></thead><tbody>
+        <tr><td>Hurst (H)</td><td class="${hurst>0.55?'pos':hurst<0.45?'neg':'neu'}">${hurst?fmt(hurst):'-'}</td><td>${hurst>0.55?'Tendencia persistente':hurst<0.45?'Reversión a la media':'Random walk'}</td></tr>
+        <tr><td>OBV Trend</td><td class="${colCls(obv[obv.length-1]-obv[0])}">${obv[obv.length-1]>obv[0]?'↑ Alcista':'↓ Bajista'}</td><td>Presión compradora/vendedora</td></tr>
+        <tr><td>Precio vs SMA20</td><td class="${colCls(lastPrice-bb.mid[bb.mid.length-1])}">${fmtPct((lastPrice/bb.mid[bb.mid.length-1])-1)}</td><td>${lastPrice>bb.mid[bb.mid.length-1]?'Sobre la media':'Bajo la media'}</td></tr>
+        <tr><td>Ancho BB</td><td>${fmtPct((lastBBup-lastBBdn)/bb.mid[bb.mid.length-1])}</td><td>Volatilidad de bandas</td></tr>
+        <tr><td>MACD Signal</td><td>${fmt(lastSig,4)}</td><td>Línea señal (EMA 9 del MACD)</td></tr>
+        <tr><td>Estocástico %D</td><td>${fmt(stoch.d[stoch.d.length-1])}</td><td>Señal suavizada (EMA %K)</td></tr>
+      </tbody></table>
+    </div>
+  </div>`;
+
+  // Charts
+  html += `<div class="chart-box"><div class="chart-t">PRECIO + BOLLINGER BANDS (20,2)</div><canvas id="ch-bb" class="tall"></canvas></div>`;
+  html += `<div class="g2" style="margin-top:14px">
+    <div class="chart-box" style="margin:0"><div class="chart-t">RSI (14)</div><canvas id="ch-rsi"></canvas></div>
+    <div class="chart-box" style="margin:0"><div class="chart-t">MACD (12,26,9)</div><canvas id="ch-macd"></canvas></div>
+  </div>`;
+
+  el.innerHTML = html;
+
+  // Bollinger chart
+  const bbDates = dates.slice(19);
+  renderChart('ch-bb', {
+    type: 'line',
+    data: {
+      labels: bbDates,
+      datasets: [
+        {label:'Precio',data:prices.slice(19),borderColor:'#00c8ff',borderWidth:1.5,pointRadius:0,tension:0.1},
+        {label:'SMA20',data:bb.mid,borderColor:'#ffc300',borderWidth:1,pointRadius:0,tension:0.1,borderDash:[3,3]},
+        {label:'Banda +2σ',data:bb.up,borderColor:'#5a7080',borderWidth:1,pointRadius:0,tension:0.1,fill:false},
+        {label:'Banda -2σ',data:bb.dn,borderColor:'#5a7080',borderWidth:1,pointRadius:0,tension:0.1,fill:'-1',backgroundColor:'rgba(90,112,128,0.08)'},
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{labels:{color:'#5a7080',font:{size:10}}}},scales:{x:{ticks:{color:'#5a7080',maxTicksLimit:8,font:{size:9}},grid:{color:'rgba(255,255,255,.04)'}},y:{ticks:{color:'#5a7080',font:{size:10}},grid:{color:'rgba(255,255,255,.04)'}}}}
+  });
+
+  // RSI chart
+  const rsiDates = dates.slice(14);
+  renderChart('ch-rsi', {
+    type:'line',
+    data:{
+      labels:rsiDates,
+      datasets:[
+        {label:'RSI',data:rsi,borderColor:'#b06bff',borderWidth:1.5,pointRadius:0,tension:0.1},
+        {label:'70',data:rsiDates.map(()=>70),borderColor:'rgba(255,59,92,.5)',borderWidth:1,pointRadius:0,borderDash:[4,4]},
+        {label:'30',data:rsiDates.map(()=>30),borderColor:'rgba(0,232,122,.5)',borderWidth:1,pointRadius:0,borderDash:[4,4]},
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#5a7080',maxTicksLimit:8,font:{size:9}},grid:{color:'rgba(255,255,255,.04)'}},y:{min:0,max:100,ticks:{color:'#5a7080',font:{size:10}},grid:{color:'rgba(255,255,255,.04)'}}}}
+  });
+
+  // MACD chart
+  const macdDates = dates.slice(25);
+  const histColors = macd.hist.filter(v=>v!==null).map(v => v>=0?'rgba(0,232,122,.6)':'rgba(255,59,92,.6)');
+  const macdData = macd.macd;
+  const signalData = macd.signal;
+  const histData = macd.hist.filter(v=>v!==null);
+
+  renderChart('ch-macd', {
+    type:'bar',
+    data:{
+      labels:macdDates,
+      datasets:[
+        {type:'line',label:'MACD',data:macdData,borderColor:'#00c8ff',borderWidth:1.2,pointRadius:0,tension:0.1,yAxisID:'y'},
+        {type:'line',label:'Signal',data:signalData,borderColor:'#ffc300',borderWidth:1.2,pointRadius:0,tension:0.1,yAxisID:'y'},
+        {type:'bar',label:'Histograma',data:histData,backgroundColor:histColors,yAxisID:'y'},
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{labels:{color:'#5a7080',font:{size:10}}}},scales:{x:{ticks:{color:'#5a7080',maxTicksLimit:8,font:{size:9}},grid:{color:'rgba(255,255,255,.04)'}},y:{ticks:{color:'#5a7080',font:{size:10}},grid:{color:'rgba(255,255,255,.04)'}}}}
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// TAB 3 — RIESGO / VaR
+// ═══════════════════════════════════════════════════
+function renderRiesgo(tickers) {
+  const el = document.getElementById('panel-riesgo');
+  const primary = tickers[0];
+  const d = state.data[primary];
+  if(!d) return;
+
+  const { returns, dates, prices } = d;
+  const metrics = calcMetrics(returns);
+  const var95 = calcVaR(returns, 0.95);
+  const var99 = calcVaR(returns, 0.99);
+  const capital = 1000000;
+
+  let html = `<div class="stitle">VALUE AT RISK — ${primary} · Capital: $1,000,000</div>`;
+
+  // VaR cards
+  html += `<div class="g3">
+    <div class="card">
+      <div class="card-t">VaR PARAMÉTRICO 95%</div>
+      <div class="card-v neg">$${Math.round(var95.varP).toLocaleString()}</div>
+      <div class="card-s">Pérdida máx (diaria) · NC 95%</div>
+      <div class="pbar" style="margin-top:8px"><div class="pfill" style="width:${Math.min(var95.varP/50000*100,100)}%;background:var(--red)"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-t">VaR HISTÓRICO 95%</div>
+      <div class="card-v neg">$${Math.round(var95.varH).toLocaleString()}</div>
+      <div class="card-s">Percentil 5% de retornos históricos</div>
+      <div class="pbar" style="margin-top:8px"><div class="pfill" style="width:${Math.min(var95.varH/50000*100,100)}%;background:var(--red)"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-t">VaR MONTE CARLO 95%</div>
+      <div class="card-v neg">$${Math.round(var95.varMC).toLocaleString()}</div>
+      <div class="card-s">10,000 simulaciones · Normal (μ,σ)</div>
+      <div class="pbar" style="margin-top:8px"><div class="pfill" style="width:${Math.min(var95.varMC/50000*100,100)}%;background:var(--red)"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-t">CVaR / EXPECTED SHORTFALL 95%</div>
+      <div class="card-v neg">$${Math.round(var95.cvarH).toLocaleString()}</div>
+      <div class="card-s">Pérdida media dado VaR superado</div>
+    </div>
+    <div class="card">
+      <div class="card-t">VaR PARAMÉTRICO 99%</div>
+      <div class="card-v neg">$${Math.round(var99.varP).toLocaleString()}</div>
+      <div class="card-s">Z = -2.326 · NC 99%</div>
+    </div>
+    <div class="card">
+      <div class="card-t">VaR HISTÓRICO 99%</div>
+      <div class="card-v neg">$${Math.round(var99.varH).toLocaleString()}</div>
+      <div class="card-s">Percentil 1% histórico</div>
+    </div>
+  </div>`;
+
+  // Charts
+  html += `<div class="g2" style="margin-top:14px">
+    <div class="chart-box" style="margin:0"><div class="chart-t">DISTRIBUCIÓN DE RETORNOS DIARIOS</div><canvas id="ch-dist"></canvas></div>
+    <div class="chart-box" style="margin:0"><div class="chart-t">DRAWDOWN UNDERWATER</div><canvas id="ch-dd"></canvas></div>
+  </div>`;
+
+  // Risk metrics table
+  html += `<div class="stitle">MÉTRICAS DE RIESGO Y RETORNO (1 AÑO OUT-OF-SAMPLE)</div>`;
+  html += `<div class="g2">
+    <div class="card"><div class="card-t">MÉTRICAS AJUSTADAS POR RIESGO</div>
+      <table class="tbl" style="margin-top:8px"><tbody>
+        <tr><td>CAGR (1 año)</td><td class="${colCls(metrics.cagr)}">${fmtPct(metrics.cagr)}</td></tr>
+        <tr><td>Retorno Total</td><td class="${colCls(metrics.total)}">${fmtPct(metrics.total)}</td></tr>
+        <tr><td>Vol Anualizada</td><td>${fmtPct(metrics.annVol)}</td></tr>
+        <tr><td>Sharpe Ratio</td><td class="${colCls(metrics.sharpe)}">${fmt(metrics.sharpe)}</td></tr>
+        <tr><td>Sortino Ratio</td><td class="${colCls(metrics.sortino)}">${fmt(metrics.sortino)}</td></tr>
+        <tr><td>Max Drawdown</td><td class="neg">${fmtPct(metrics.mdd)}</td></tr>
+        <tr><td>Calmar Ratio</td><td class="${colCls(metrics.calmar)}">${metrics.calmar?fmt(metrics.calmar):'—'}</td></tr>
+        <tr><td>Hit Ratio</td><td>${fmtPct(metrics.hits)} de días positivos</td></tr>
+      </tbody></table>
+    </div>
+    <div class="card"><div class="card-t">ESTADÍSTICOS DE RETORNOS</div>
+      <table class="tbl" style="margin-top:8px"><tbody>
+        <tr><td>Media diaria</td><td class="${colCls(var95.mean)}">${fmtPct(var95.mean)}</td></tr>
+        <tr><td>Desv. std diaria</td><td>${fmtPct(var95.std)}</td></tr>
+        <tr><td>Media anualizada</td><td class="${colCls(var95.mean*252)}">${fmtPct(var95.mean*252)}</td></tr>
+        <tr><td>Desv. std anual</td><td>${fmtPct(var95.std*Math.sqrt(252))}</td></tr>
+        <tr><td>Z-score VaR 95%</td><td>-1.645</td></tr>
+        <tr><td>Z-score VaR 99%</td><td>-2.326</td></tr>
+        <tr><td>Skewness (aprox)</td><td>${fmt(calcSkewness(returns))}</td></tr>
+        <tr><td>Kurtosis (aprox)</td><td>${fmt(calcKurtosis(returns))}</td></tr>
+      </tbody></table>
+    </div>
+  </div>`;
+
+  el.innerHTML = html;
+
+  // Distribution histogram
+  const hist2 = histogram(returns, 40);
+  const varRetP = -var95.varP/capital;
+  const varRetH = -var95.varH/capital;
+  renderChart('ch-dist', {
+    type:'bar',
+    data:{
+      labels: hist2.labels,
+      datasets:[{
+        label:'Frecuencia',
+        data: hist2.counts,
+        backgroundColor: hist2.labels.map((l,i) => {
+          const v = hist2.mn + i*hist2.bw;
+          return v < varRetP ? 'rgba(255,59,92,0.7)' : 'rgba(0,200,255,0.5)';
+        }),
+        borderWidth:0
+      }]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:true,
+      plugins:{legend:{display:false},annotation:{}},
+      scales:{x:{ticks:{color:'#5a7080',maxTicksLimit:10,font:{size:9}},grid:{color:'rgba(255,255,255,.03)'}},y:{ticks:{color:'#5a7080',font:{size:10}},grid:{color:'rgba(255,255,255,.04)'}}}
+    }
+  });
+
+  // Drawdown chart
+  renderChart('ch-dd', {
+    type:'line',
+    data:{
+      labels: dates,
+      datasets:[{
+        label:'Drawdown',
+        data: metrics.ddArr.slice(1).map(v=>v*100),
+        borderColor:'var(--red)',borderWidth:1.2,pointRadius:0,
+        fill:true,backgroundColor:'rgba(255,59,92,0.15)',tension:0.1
+      }]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:true,
+      plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#5a7080',maxTicksLimit:8,font:{size:9}},grid:{color:'rgba(255,255,255,.04)'}},y:{ticks:{color:'#5a7080',font:{size:10},callback:v=>v.toFixed(1)+'%'},grid:{color:'rgba(255,255,255,.04)'}}}
+    }
+  });
+}
+
+function calcSkewness(arr) {
+  const n=arr.length, m=arr.reduce((a,b)=>a+b)/n;
+  const s=Math.sqrt(arr.reduce((a,b)=>a+(b-m)**2,0)/n);
+  return arr.reduce((a,b)=>a+((b-m)/s)**3,0)/n;
+}
+function calcKurtosis(arr) {
+  const n=arr.length, m=arr.reduce((a,b)=>a+b)/n;
+  const s=Math.sqrt(arr.reduce((a,b)=>a+(b-m)**2,0)/n);
+  return arr.reduce((a,b)=>a+((b-m)/s)**4,0)/n-3;
+}
+
+// ═══════════════════════════════════════════════════
+// TAB 4 — OPTIMIZACIÓN
+// ═══════════════════════════════════════════════════
+function renderOptimizacion(tickers) {
+  const el = document.getElementById('panel-optimizacion');
+  const valid = tickers.filter(t => state.data[t]);
+
+  if(valid.length < 2) {
+    el.innerHTML = '<div class="empty">Agregá 2 o más tickers para ver optimización de cartera.</div>';
+    return;
+  }
+
+  let html = `<div class="stitle">ANÁLISIS DE CARTERA — ${valid.join(' · ')}</div>`;
+
+  // Correlation matrix
+  html += `<div class="g2">
+    <div class="card">
+      <div class="card-t">MATRIZ DE CORRELACIÓN (PEARSON)</div>
+      <div class="hm-wrap" id="hm-wrap"></div>
+    </div>
+    <div class="chart-box" style="margin:0">
+      <div class="chart-t">FRONTERA EFICIENTE — MONTE CARLO (3,000 carteras)</div>
+      <canvas id="ch-frontier"></canvas>
+    </div>
+  </div>`;
+
+  // CAPM table
+  html += `<div class="stitle">CAPM — BETA, ALPHA Y SECURITY MARKET LINE</div>
+  <div class="g2">
+    <div class="card">
+      <div class="card-t">BETA Y ALPHA POR ACTIVO (vs SPY)</div>
+      <table class="tbl" style="margin-top:8px"><thead><tr>
+        <th>TICKER</th><th>β BETA</th><th>α ALPHA ANUAL</th><th>E[R] CAPM</th><th>R REAL</th><th>EXCESO</th><th>SHARPE</th>
+      </tr></thead><tbody id="capm-tbody"></tbody></table>
+    </div>
+    <div class="chart-box" style="margin:0">
+      <div class="chart-t">SECURITY MARKET LINE (SML)</div>
+      <canvas id="ch-sml"></canvas>
+    </div>
+  </div>`;
+
+  // Portfolio summary
+  html += `<div class="stitle">MÉTRICAS DE CARTERA EQUIPONDERADA</div>
+  <div class="g4" id="port-metrics"></div>`;
+
+  el.innerHTML = html;
+
+  const retArrays = valid.map(t => state.data[t].returns);
+  const n = valid.length;
+  const w = 1/n;
+
+  // Correlation matrix render
+  const corrEl = document.getElementById('hm-wrap');
+  const corrMatrix = [];
+  for(let i=0;i<n;i++){
+    corrMatrix[i]=[];
+    for(let j=0;j<n;j++) corrMatrix[i][j] = i===j?1:correlation(retArrays[i],retArrays[j]);
+  }
+  // Build heatmap table
+  let hm = `<table style="border-collapse:collapse;margin-top:10px;font-size:11px">`;
+  hm += '<tr><td></td>' + valid.map(t => `<td style="text-align:center;padding:4px 6px;color:var(--text2);font-weight:bold">${t}</td>`).join('') + '</tr>';
+  for(let i=0;i<n;i++){
+    hm += `<tr><td style="padding:4px 8px;color:var(--text3);text-align:right">${valid[i]}</td>`;
+    for(let j=0;j<n;j++){
+      const v=corrMatrix[i][j];
+      const r=Math.round(255*(v>0?(1-v):1));
+      const g=Math.round(255*(v>0?1:1-Math.abs(v)));
+      const b=Math.round(255*(v<0?(1+v):0));
+      const bg=`rgba(${r},${g},${b},0.6)`;
+      const tc = Math.abs(v)>0.5?'#000':'#fff';
+      hm += `<td style="background:${bg};color:${tc};padding:4px 6px;text-align:center;font-weight:bold;border:1px solid rgba(0,0,0,.2)">${fmt(v)}</td>`;
+    }
+    hm += '</tr>';
+  }
+  hm += '</table>';
+  corrEl.innerHTML = hm;
+
+  // CAPM table
+  const bmkRet = state.spy;
+  const bmkAnn = bmkRet ? (1+bmkRet.reduce((a,b)=>a+b)/bmkRet.length)**252-1 : 0.10;
+  const tbody = document.getElementById('capm-tbody');
+  const betas=[], alphas=[], annRets=[];
+  valid.forEach(t => {
+    const td2 = state.data[t];
+    const m = calcMetrics(td2.returns);
+    const {beta,alphaA} = bmkRet ? calcBeta(td2.returns,bmkRet) : {beta:1,alphaA:0};
+    const capmR = RF + beta*(bmkAnn-RF);
+    const excess = m.cagr - capmR;
+    betas.push(beta); alphas.push(alphaA); annRets.push(m.cagr);
+    tbody.innerHTML += `<tr>
+      <td style="color:var(--accent);font-weight:bold">${t}</td>
+      <td class="${beta>1?'neg':beta<0.8?'pos':'neu'}">${fmt(beta)}</td>
+      <td class="${colCls(alphaA)}">${fmtPct(alphaA)}</td>
+      <td>${fmtPct(capmR)}</td>
+      <td class="${colCls(m.cagr)}">${fmtPct(m.cagr)}</td>
+      <td class="${colCls(excess)}">${fmtPct(excess)}</td>
+      <td class="${colCls(m.sharpe)}">${fmt(m.sharpe)}</td>
+    </tr>`;
+  });
+
+  // SML chart
+  const betaRange = [0, Math.max(...betas)*1.2];
+  const smlPoints = [
+    {x:betaRange[0], y:(RF+betaRange[0]*(bmkAnn-RF))*100},
+    {x:betaRange[1], y:(RF+betaRange[1]*(bmkAnn-RF))*100}
+  ];
+  const colors2 = ['#00c8ff','#00e87a','#ffc300','#ff3b5c','#b06bff','#ff9500'];
+  renderChart('ch-sml', {
+    type:'scatter',
+    data:{
+      datasets:[
+        {label:'SML',data:smlPoints,borderColor:'var(--text2)',borderWidth:1.5,pointRadius:0,showLine:true,borderDash:[4,4],type:'line'},
+        ...valid.map((t,i)=>({
+          label:t,
+          data:[{x:betas[i],y:annRets[i]*100}],
+          backgroundColor:colors2[i],
+          pointRadius:7,pointHoverRadius:9
+        })),
+        {label:'Mercado',data:[{x:1,y:bmkAnn*100}],backgroundColor:'#fff',pointRadius:8,pointStyle:'rectRot'},
+        {label:'Rf',data:[{x:0,y:RF*100}],backgroundColor:'#aaa',pointRadius:6},
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:true,
+      plugins:{legend:{labels:{color:'#5a7080',font:{size:10}}}},
+      scales:{
+        x:{title:{display:true,text:'Beta (β)',color:'#5a7080'},ticks:{color:'#5a7080',font:{size:10}},grid:{color:'rgba(255,255,255,.04)'}},
+        y:{title:{display:true,text:'Retorno Anual (%)',color:'#5a7080'},ticks:{color:'#5a7080',font:{size:10},callback:v=>v.toFixed(1)+'%'},grid:{color:'rgba(255,255,255,.04)'}}
+      }
+    }
+  });
+
+  // Efficient frontier
+  const pts = efficientFrontier(retArrays, valid, 2000);
+  const maxS = pts.reduce((a,b)=>a.s>b.s?a:b);
+  const minV = pts.reduce((a,b)=>a.v<b.v?a:b);
+  renderChart('ch-frontier', {
+    type:'scatter',
+    data:{
+      datasets:[
+        {label:'Carteras MC',data:pts.map(p=>({x:p.v*100,y:p.r*100})),backgroundColor:pts.map(p=>`hsl(${(p.s+0.5)*200},80%,50%)`),pointRadius:1.5,pointHoverRadius:4},
+        {label:'Máx Sharpe',data:[{x:maxS.v*100,y:maxS.r*100}],backgroundColor:'#ffc300',pointRadius:10,pointStyle:'star'},
+        {label:'Mín Varianza',data:[{x:minV.v*100,y:minV.r*100}],backgroundColor:'#00c8ff',pointRadius:10,pointStyle:'triangle'},
+        ...valid.map((t,i)=>({label:t,data:[{x:calcMetrics(retArrays[i]).annVol*100,y:calcMetrics(retArrays[i]).cagr*100}],backgroundColor:colors2[i],pointRadius:8}))
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:true,
+      plugins:{legend:{labels:{color:'#5a7080',font:{size:10}}}},
+      scales:{
+        x:{title:{display:true,text:'Volatilidad (%)',color:'#5a7080'},ticks:{color:'#5a7080',font:{size:10},callback:v=>v.toFixed(1)+'%'},grid:{color:'rgba(255,255,255,.04)'}},
+        y:{title:{display:true,text:'Retorno (%)',color:'#5a7080'},ticks:{color:'#5a7080',font:{size:10},callback:v=>v.toFixed(1)+'%'},grid:{color:'rgba(255,255,255,.04)'}}
+      }
+    }
+  });
+
+  // Portfolio metrics
+  const portRet = valid.reduce((s,t) => s+calcMetrics(state.data[t].returns).cagr*w, 0);
+  const portVol = Math.sqrt(n===1 ? calcMetrics(retArrays[0]).annVol**2 :
+    retArrays.reduce((s,a,i) => s + retArrays.reduce((s2,b,j) => s2 + w*w*correlation(a,b)*calcMetrics(a).annVol*calcMetrics(b).annVol, 0), 0));
+  const portSharpe = (portRet-RF)/portVol;
+  const portMetEl = document.getElementById('port-metrics');
+  portMetEl.innerHTML = `
+    <div class="card"><div class="card-t">RETORNO CARTERA</div><div class="card-v ${colCls(portRet)}">${fmtPct(portRet)}</div><div class="card-s">CAGR equiponderada</div></div>
+    <div class="card"><div class="card-t">VOL CARTERA</div><div class="card-v">${fmtPct(portVol)}</div><div class="card-s">Anualizada</div></div>
+    <div class="card"><div class="card-t">SHARPE CARTERA</div><div class="card-v ${colCls(portSharpe)}">${fmt(portSharpe)}</div><div class="card-s">Rf = 4.5%</div></div>
+    <div class="card"><div class="card-t">DIVERSIFICACIÓN</div><div class="card-v">${valid.length} activos</div><div class="card-s">Peso uniforme ${(w*100).toFixed(0)}% c/u</div></div>
+  `;
+}
+
+// ═══════════════════════════════════════════════════
+// TAB 5 — BACKTESTING
+// ═══════════════════════════════════════════════════
+function renderBacktest(ticker, strategy='sma') {
+  const el = document.getElementById('panel-backtest');
+  const d = state.data[ticker];
+  if(!d) return;
+
+  const { prices, returns, dates } = d;
+
+  // Controls
+  let html = `
+  <div class="controls">
+    <span class="ctl-label">TICKER: <b style="color:var(--accent)">${ticker}</b></span>
+    <span class="ctl-label">ESTRATEGIA:</span>
+    <select id="bt-strat" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:5px;font-family:inherit;font-size:12px">
+      <option value="sma">SMA Crossover (Golden/Death Cross)</option>
+      <option value="rsi">RSI Mean Reversion</option>
+      <option value="momentum">Momentum 6 Meses</option>
+    </select>
+    <span class="ctl-label">SMA corta:</span><input class="ctl-input" id="bt-s" value="20">
+    <span class="ctl-label">SMA larga:</span><input class="ctl-input" id="bt-l" value="50">
+    <span class="ctl-label">Costos:</span><input class="ctl-input" id="bt-cost" value="15"> bps
+    <button class="btn btn-g" onclick="runBacktest('${ticker}')">▶ EJECUTAR</button>
+  </div>`;
+
+  html += `<div id="bt-metrics-row" class="g4"></div>`;
+  html += `<div class="chart-box"><div class="chart-t">EQUITY CURVE — ESTRATEGIA VS BUY &amp; HOLD</div><canvas id="ch-equity" class="tall"></canvas></div>`;
+  html += `<div class="chart-box"><div class="chart-t">DRAWDOWN — ESTRATEGIA</div><canvas id="ch-bt-dd"></canvas></div>`;
+  html += `<div class="card" style="margin-top:14px" id="bt-detail-table"></div>`;
+
+  el.innerHTML = html;
+
+  runBacktest(ticker);
+}
+
+function runBacktest(ticker) {
+  if(!ticker) ticker = state.tickers[0];
+  if(!ticker || !state.data[ticker]) return;
+
+  const d = state.data[ticker];
+  const { prices, returns, dates } = d;
+  const strat = document.getElementById('bt-strat')?.value || 'sma';
+  const short = parseInt(document.getElementById('bt-s')?.value || 20);
+  const long2  = parseInt(document.getElementById('bt-l')?.value || 50);
+  const costBps = parseFloat(document.getElementById('bt-cost')?.value || 15);
+  const cost = costBps / 10000;
+
+  let result;
+  let startOffset;
+  if(strat === 'sma') {
+    result = backtestSMA(prices, returns, short, long2, cost);
+    startOffset = long2;
+  } else if(strat === 'rsi') {
+    result = backtestRSI(prices, returns, 14, 70, 30, cost);
+    startOffset = 14;
+  } else {
+    result = backtestMomentum(prices, returns, 126, cost);
+    startOffset = 126;
+  }
+
+  const {eq, bh} = result;
+  const stratDates = dates.slice(startOffset);
+  const stratRets = eq.map((v,i)=> i===0 ? 0 : v/eq[i-1]-1).slice(1);
+  const bhRets = bh.map((v,i)=> i===0 ? 0 : v/bh[i-1]-1).slice(1);
+
+  const ms = calcMetrics(stratRets);
+  const mb = calcMetrics(bhRets);
+
+  // Drawdown of strategy
+  let peak=1, ddArr=[];
+  for(const v of eq){ if(v>peak) peak=v; ddArr.push((v-peak)/peak*100); }
+
+  // Metrics row
+  const mrEl = document.getElementById('bt-metrics-row');
+  if(mrEl) mrEl.innerHTML = `
+    <div class="card"><div class="card-t">CAGR ESTRATEGIA</div><div class="card-v ${colCls(ms.cagr)}">${fmtPct(ms.cagr)}</div><div class="card-s">vs B&H: ${fmtPct(mb.cagr)}</div></div>
+    <div class="card"><div class="card-t">SHARPE ESTRATEGIA</div><div class="card-v ${colCls(ms.sharpe)}">${fmt(ms.sharpe)}</div><div class="card-s">vs B&H: ${fmt(mb.sharpe)}</div></div>
+    <div class="card"><div class="card-t">MAX DRAWDOWN</div><div class="card-v neg">${fmtPct(ms.mdd)}</div><div class="card-s">vs B&H: ${fmtPct(mb.mdd)}</div></div>
+    <div class="card"><div class="card-t">RETORNO TOTAL</div><div class="card-v ${colCls(eq[eq.length-1]-1)}">${fmtPct(eq[eq.length-1]-1)}</div><div class="card-s">B&H: ${fmtPct(bh[bh.length-1]-1)}</div></div>
+  `;
+
+  // Equity chart
+  renderChart('ch-equity', {
+    type:'line',
+    data:{
+      labels: stratDates,
+      datasets:[
+        {label:'Estrategia',data:eq.map(v=>(v-1)*100),borderColor:'var(--accent)',borderWidth:1.8,pointRadius:0,tension:0.1},
+        {label:'Buy & Hold',data:bh.map(v=>(v-1)*100),borderColor:'var(--green)',borderWidth:1.2,pointRadius:0,tension:0.1,borderDash:[4,4]},
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:true,
+      plugins:{legend:{labels:{color:'#5a7080',font:{size:11}}}},
+      scales:{x:{ticks:{color:'#5a7080',maxTicksLimit:8,font:{size:9}},grid:{color:'rgba(255,255,255,.04)'}},y:{ticks:{color:'#5a7080',font:{size:10},callback:v=>v.toFixed(0)+'%'},grid:{color:'rgba(255,255,255,.04)'}}}
+    }
+  });
+
+  // DD chart
+  renderChart('ch-bt-dd', {
+    type:'line',
+    data:{
+      labels: stratDates,
+      datasets:[{label:'Drawdown',data:ddArr,borderColor:'var(--red)',borderWidth:1.2,pointRadius:0,fill:true,backgroundColor:'rgba(255,59,92,.15)',tension:0.1}]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:true,
+      plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#5a7080',maxTicksLimit:8,font:{size:9}},grid:{color:'rgba(255,255,255,.04)'}},y:{ticks:{color:'#5a7080',font:{size:10},callback:v=>v.toFixed(1)+'%'},grid:{color:'rgba(255,255,255,.04)'}}}
+    }
+  });
+
+  // Detail table
+  const stratName = strat==='sma'?`SMA(${short}/${long2})`:strat==='rsi'?'RSI (14, 30/70)':'Momentum 6m';
+  const dtEl = document.getElementById('bt-detail-table');
+  if(dtEl) dtEl.innerHTML = `
+    <div class="card-t">TABLA DE PERFORMANCE — ${stratName} · Costos: ${costBps} bps/trade</div>
+    <table class="tbl" style="margin-top:10px"><thead><tr>
+      <th>MÉTRICA</th><th>ESTRATEGIA</th><th>BUY &amp; HOLD</th><th>DIFERENCIA</th>
+    </tr></thead><tbody>
+      ${[
+        ['CAGR',fmtPct(ms.cagr),fmtPct(mb.cagr),fmtPct(ms.cagr-mb.cagr),ms.cagr-mb.cagr],
+        ['Retorno Total',fmtPct(ms.total),fmtPct(mb.total),fmtPct(ms.total-mb.total),ms.total-mb.total],
+        ['Vol Anual',fmtPct(ms.annVol),fmtPct(mb.annVol),fmtPct(ms.annVol-mb.annVol),mb.annVol-ms.annVol],
+        ['Sharpe Ratio',fmt(ms.sharpe),fmt(mb.sharpe),fmt(ms.sharpe-mb.sharpe),ms.sharpe-mb.sharpe],
+        ['Sortino Ratio',fmt(ms.sortino),fmt(mb.sortino),fmt(ms.sortino-mb.sortino),ms.sortino-mb.sortino],
+        ['Max Drawdown',fmtPct(ms.mdd),fmtPct(mb.mdd),fmtPct(ms.mdd-mb.mdd),mb.mdd-ms.mdd],
+        ['Calmar Ratio',ms.calmar?fmt(ms.calmar):'—',mb.calmar?fmt(mb.calmar):'—','—',0],
+        ['Hit Ratio',fmtPct(ms.hits),fmtPct(mb.hits),fmtPct(ms.hits-mb.hits),ms.hits-mb.hits],
+      ].map(([l,s2,b,diff,cv])=>`<tr>
+        <td>${l}</td>
+        <td class="${colCls(parseFloat(s2)||0)}">${s2}</td>
+        <td>${b}</td>
+        <td class="${colCls(cv)}">${diff}</td>
+      </tr>`).join('')}
+    </tbody></table>
+  `;
+}
+</script>
+</body>
+</html>
