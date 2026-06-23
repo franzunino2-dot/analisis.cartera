@@ -499,14 +499,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
     <div class="panel-desc"><span class="panel-desc-label">qué muestra</span><span class="panel-desc-text">Security Market Line con activos sobre/bajo la recta, barras realizado vs CAPM, y tabla de betas y alfas.</span></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
       <div class="param-chip"><label>Tasa libre riesgo (Rf)</label><input id="p-rf-capm" type="number" value="0.04" step="0.01" min="0"></div>
+      <div class="param-chip"><label>Pesos cartera % (mismo orden tickers)</label><input id="p-pesos-capm" type="text" placeholder="40,35,25 — vacío = equitativo" style="width:220px"></div>
     </div>
     <div class="metrics-row" id="metrics-capm"></div>
     <div class="chart-grid">
-      <div class="chart-box"><div class="chart-box-title">Security Market Line (SML)</div><div id="chart-capm-sml" style="height:340px"></div></div>
+      <div class="chart-box"><div class="chart-box-title">Security Market Line (SML) · ★ = cartera ponderada</div><div id="chart-capm-sml" style="height:340px"></div></div>
       <div class="chart-box"><div class="chart-box-title">Realizado vs CAPM (alfa)</div><div id="chart-capm-alfa" style="height:340px"></div></div>
     </div>
     <div class="chart-box"><div class="chart-box-title">Tabla métricas CAPM</div>
-      <table class="data-table"><thead><tr><th>Activo</th><th>Beta (β)</th><th>Retorno Real</th><th>CAPM E[R]</th><th>Alfa (α)</th><th>Señal</th></tr></thead><tbody id="tbody-capm"></tbody></table>
+      <table class="data-table"><thead><tr><th>Activo</th><th>Peso %</th><th>Beta (β)</th><th>Retorno Real</th><th>CAPM E[R]</th><th>Alfa (α)</th><th>Señal</th></tr></thead><tbody id="tbody-capm"></tbody></table>
     </div>
     <div class="insight-box"><h3>⬡ Interpretación · Claude</h3><div class="insight-content" id="insight-capm">—</div></div>
   </div>
@@ -1712,38 +1713,99 @@ async function runBF(tickers){
 async function runCAPM(tickers){
   await baseRun('capm',tickers,async(id,tickers,data)=>{
     const rf=+(document.getElementById('p-rf-capm')?.value||0.04);
+
+    // ── Pesos ──
+    const pesosRaw=document.getElementById('p-pesos-capm')?.value.trim();
+    let w=pesosRaw
+      ?pesosRaw.split(',').map(v=>parseFloat(v.trim())/100)
+      :tickers.map(()=>1/tickers.length);
+    if(w.length!==tickers.length) w=tickers.map(()=>1/tickers.length);
+    const wSum=w.reduce((a,b)=>a+b,0);
+    w=w.map(x=>x/wSum);
+
     const allR=tickers.map(t=>data[t].returns);
-    const mktR=allR[0].map((_,i)=>mean(allR.map(r=>r[i])));
-    const mktAnn=(1+mean(mktR))**252-1,mktPrem=mktAnn-rf;
-    const betas=allR.map(r=>+(cov(r,mktR)/(cov(mktR,mktR)||.001)).toFixed(4));
-    const retAnn=allR.map(r=>+((1+mean(r))**252-1).toFixed(4));
-    const capmR=betas.map(b=>+(rf+b*mktPrem).toFixed(4));
-    const alpha=retAnn.map((r,i)=>+(r-capmR[i]).toFixed(4));
-    const bR=Array.from({length:100},(_,i)=>i/50);
+    // Mercado implícito = retorno ponderado del propio conjunto
+    const mktR=allR[0].map((_,i)=>allR.reduce((s,r,k)=>s+w[k]*r[i],0));
+    const mktAnn=(1+mean(mktR))**252-1, mktPrem=mktAnn-rf;
+    const varMkt=cov(mktR,mktR)||0.001;
+
+    // ── Métricas individuales ──
+    const betas  = allR.map(r=>cov(r,mktR)/varMkt);
+    const retAnn = allR.map(r=>(1+mean(r))**252-1);
+    const capmR  = betas.map(b=>rf+b*mktPrem);
+    const alpha  = retAnn.map((r,i)=>r-capmR[i]);
+
+    // ── Cartera ponderada ──
+    const portBeta  = betas.reduce((s,b,i)=>s+w[i]*b, 0);
+    const portRetAnn= retAnn.reduce((s,r,i)=>s+w[i]*r, 0);
+    const portCAPM  = rf+portBeta*mktPrem;
+    const portAlpha = portRetAnn-portCAPM;
+
+    // ── SML chart ──
+    const bRange=Array.from({length:120},(_,i)=>i/50-0.2);
     const traces=[
-      {x:bR,y:bR.map(b=>rf+b*mktPrem),type:'scatter',mode:'lines',name:'SML',line:{color:'#7B8CDE',width:2}},
+      {x:bRange,y:bRange.map(b=>rf+b*mktPrem),type:'scatter',mode:'lines',name:'SML',line:{color:'#7B8CDE',width:2}},
       {x:[0],y:[rf],type:'scatter',mode:'markers',name:'Rf',marker:{color:'#8B6F47',size:10}},
       {x:[1],y:[mktAnn],type:'scatter',mode:'markers',name:'Mercado',marker:{color:'#2A4365',size:12,symbol:'square'}},
-      ...tickers.map((t,i)=>({x:[betas[i]],y:[retAnn[i]],type:'scatter',mode:'markers+text',name:t,text:[t],textposition:'top right',marker:{color:alpha[i]>0?'#00D4AA':'#E05252',size:12}}))
+      ...tickers.map((t,i)=>({
+        x:[betas[i]],y:[retAnn[i]],type:'scatter',mode:'markers+text',name:t,
+        text:[t],textposition:'top right',
+        marker:{color:alpha[i]>0?'#00D4AA':'#E05252',size:12}
+      })),
+      // ★ Cartera ponderada
+      {x:[portBeta],y:[portRetAnn],type:'scatter',mode:'markers+text',name:'★ Cartera',
+       text:['★ Cartera'],textposition:'top center',
+       marker:{color:'#FFD93D',size:18,symbol:'star',line:{color:'#fff',width:1.5}}},
     ];
-    Plotly.newPlot('chart-capm-sml',traces,L({xaxis:{...PLT.xaxis,title:'Beta (β)'},yaxis:{...PLT.yaxis,title:'E[R] anual'}}),CFG);
+    Plotly.newPlot('chart-capm-sml',traces,L({
+      xaxis:{...PLT.xaxis,title:'Beta (β)'},
+      yaxis:{...PLT.yaxis,title:'E[R] anual'},
+    }),CFG);
+
+    // ── Alfa chart (individuales + cartera) ──
+    const allLabels=[...tickers,'★ Cartera'];
+    const allRetAnn=[...retAnn,portRetAnn];
+    const allCAPMR=[...capmR,portCAPM];
     Plotly.newPlot('chart-capm-alfa',[
-      {x:tickers,y:retAnn.map(v=>+(v*100).toFixed(2)),type:'bar',name:'Retorno real',marker:{color:'#2A4365'}},
-      {x:tickers,y:capmR.map(v=>+(v*100).toFixed(2)),type:'bar',name:'CAPM E[R]',marker:{color:'#E05252'}},
+      {x:allLabels,y:allRetAnn.map(v=>+(v*100).toFixed(2)),type:'bar',name:'Retorno real',marker:{color:[...tickers.map(()=>'#2A4365'),'#FFD93D']}},
+      {x:allLabels,y:allCAPMR.map(v=>+(v*100).toFixed(2)),type:'bar',name:'CAPM E[R]',marker:{color:'#E05252'}},
     ],L({barmode:'group',yaxis:{...PLT.yaxis,title:'Retorno anual %'}}),CFG);
-    document.getElementById('tbody-capm').innerHTML=tickers.map((t,i)=>`<tr>
-      <td>${t}</td><td class="${betas[i]>1?'neg':''}">${betas[i]>0?'+':''}${betas[i]}</td>
-      <td class="${retAnn[i]>0?'pos':'neg'}">${(retAnn[i]*100).toFixed(2)}%</td>
-      <td>${(capmR[i]*100).toFixed(2)}%</td>
-      <td class="${alpha[i]>0?'pos':'neg'}">${(alpha[i]*100).toFixed(2)}%</td>
-      <td class="${alpha[i]>0?'pos':'neg'}">${alpha[i]>0?'↑ Sobre SML':'↓ Bajo SML'}</td></tr>`).join('');
+
+    // ── Tabla ──
+    const rowData=[...tickers.map((t,i)=>({
+      label:t, peso:(w[i]*100).toFixed(1),
+      beta:betas[i],ret:retAnn[i],capm:capmR[i],alph:alpha[i],isPort:false
+    })),{
+      label:'★ Cartera',peso:'100.0',
+      beta:portBeta,ret:portRetAnn,capm:portCAPM,alph:portAlpha,isPort:true
+    }];
+    document.getElementById('tbody-capm').innerHTML=rowData.map(r=>`<tr style="${r.isPort?'border-top:2px solid var(--accent2);background:rgba(245,166,35,.04)':''}">
+      <td style="${r.isPort?'color:var(--accent2);font-weight:bold':''}"><b>${r.label}</b></td>
+      <td style="color:var(--text-dim)">${r.peso}%</td>
+      <td class="${r.beta>1?'neg':r.beta<0?'neg':''}">${r.beta>0?'+':''}${r.beta.toFixed(4)}</td>
+      <td class="${r.ret>0?'pos':'neg'}">${(r.ret*100).toFixed(2)}%</td>
+      <td>${(r.capm*100).toFixed(2)}%</td>
+      <td class="${r.alph>0?'pos':'neg'}">${(r.alph*100).toFixed(2)}%</td>
+      <td class="${r.alph>0?'pos':'neg'}">${r.alph>0?'↑ Sobre SML':'↓ Bajo SML'}</td>
+    </tr>`).join('');
+
+    // ── Chips ──
     setMetrics('capm',[
+      {label:'Beta cartera ★',value:portBeta.toFixed(3),cls:portBeta>1?'neg':'pos'},
+      {label:'Ret. cartera',value:(portRetAnn*100).toFixed(2)+'%',cls:portRetAnn>0?'pos':'neg'},
+      {label:'Alfa cartera',value:(portAlpha*100).toFixed(2)+'%',cls:portAlpha>0?'pos':'neg'},
+      {label:'Alfa positivos',value:alpha.filter(a=>a>0).length+'/'+tickers.length,cls:'pos'},
       {label:'Ret. mercado',value:(mktAnn*100).toFixed(2)+'%',cls:mktAnn>0?'pos':'neg'},
       {label:'Prima riesgo',value:(mktPrem*100).toFixed(2)+'%'},
-      {label:'Beta promedio',value:mean(betas).toFixed(3)},
-      {label:'Alfa positivos',value:alpha.filter(a=>a>0).length+'/'+tickers.length,cls:'pos'},
     ]);
-    const insight=await callClaude(SYS,`CAPM/SML para ${tickers.join(', ')}, Rf=${(rf*100).toFixed(1)}%, ret.mercado=${(mktAnn*100).toFixed(2)}%, prima=${(mktPrem*100).toFixed(2)}%. Betas: ${tickers.map((t,i)=>`${t}=${betas[i]}`).join(', ')}. Alfas: ${tickers.map((t,i)=>`${t}=${(alpha[i]*100).toFixed(2)}%`).join(', ')}. Interpretá riesgo sistemático y alfas.`);
+
+    const insight=await callClaude(SYS,
+      `CAPM/SML para cartera ponderada de ${tickers.join(', ')} con pesos ${w.map((v,i)=>tickers[i]+'='+( v*100).toFixed(1)+'%').join(', ')}.
+Rf=${(rf*100).toFixed(1)}%, retorno mercado implícito=${(mktAnn*100).toFixed(2)}%, prima=${(mktPrem*100).toFixed(2)}%.
+Betas individuales: ${tickers.map((t,i)=>`${t}=${betas[i].toFixed(3)}`).join(', ')}.
+★ CARTERA: Beta=${portBeta.toFixed(3)}, Retorno realizado=${(portRetAnn*100).toFixed(2)}%, CAPM E[R]=${(portCAPM*100).toFixed(2)}%, Alfa=${(portAlpha*100).toFixed(2)}%.
+Alfas individuales: ${tickers.map((t,i)=>`${t}=${(alpha[i]*100).toFixed(2)}%`).join(', ')}.
+Interpretá: (1) nivel de riesgo sistemático de la cartera, (2) si el alfa de cartera justifica el riesgo tomado, (3) qué activo está distorsionando más el beta.`);
     setInsight('capm',insight);
   });
 }
