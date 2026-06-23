@@ -204,6 +204,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
 <div class="app-view active" id="view-terminal">
 <div class="app-layout">
 <nav class="sidebar">
+  <div class="sb-section">
+    <div class="nav-item active" id="nav-dashboard" onclick="switchPanel('dashboard')"><span class="nav-icon">⬡</span><span class="nav-text">Portfolio Dashboard</span><span class="nav-tag" style="background:rgba(0,212,170,.15);color:var(--accent)">00</span><span class="nav-tooltip">Resumen ejecutivo: retorno, volatilidad, Sharpe, beta, alpha, VaR, drawdown, allocation y top movers.</span></div>
+  </div>
   <div class="sb-section"><div class="sb-label">Correlación</div>
     <div class="nav-item" id="nav-covarianza" onclick="switchPanel('covarianza')"><span class="nav-icon">Σ</span><span class="nav-text">Matriz Covarianza</span><span class="nav-tag">01</span><span class="nav-tooltip">Mide cómo se mueven juntos los activos y cuánto varía cada uno.</span></div>
     <div class="nav-item" id="nav-pearson" onclick="switchPanel('pearson')"><span class="nav-icon">r</span><span class="nav-text">Correlación Pearson</span><span class="nav-tag">02</span><span class="nav-tooltip">Correlación lineal entre activos: qué tan sincronizados están sus movimientos.</span></div>
@@ -255,18 +258,61 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
 </nav>
 <main class="main">
 <div class="ctrl-bar">
-  <div class="ctrl-grp"><span class="ctrl-label">Activo(s)</span><input class="ctrl-input" id="input-tickers" placeholder="AAPL, MSFT, BTC-USD" style="min-width:180px"></div>
+  <div class="ctrl-grp"><span class="ctrl-label">Activos del portfolio</span><input class="ctrl-input" id="input-tickers" placeholder="MSFT, NVDA, TSLA, AAPL" style="min-width:200px" oninput="syncPortState()"></div>
+  <div class="ctrl-grp"><span class="ctrl-label">Pesos % (mismo orden)</span><input class="ctrl-input" id="input-weights" placeholder="40,30,20,10 — vacío=equitativo" style="min-width:180px" oninput="syncPortState()"></div>
+  <div class="ctrl-grp"><span class="ctrl-label">Capital (USD)</span><input class="ctrl-input" id="input-capital" type="number" value="100000" step="1000" style="width:110px" oninput="syncPortState()"></div>
+  <div class="ctrl-grp"><span class="ctrl-label">Benchmark</span><input class="ctrl-input" id="input-benchmark" value="SPY" style="width:72px" oninput="syncPortState()"></div>
   <div class="ctrl-grp"><span class="ctrl-label">Período</span><select class="ctrl-select" id="input-period"><option value="1y" selected>1 año</option><option value="2y">2 años</option><option value="3y">3 años</option><option value="5y">5 años</option></select></div>
   <div class="ctrl-grp"><span class="ctrl-label">Frecuencia</span><select class="ctrl-select" id="input-freq"><option value="daily" selected>Diaria</option><option value="weekly">Semanal</option></select></div>
   <button class="btn-run" id="btn-run" onclick="runAnalysis()">▶ EJECUTAR</button>
-    <div style="display:flex;flex-direction:column;gap:3px;margin-left:4px">
-      <span style="font-family:var(--mono);font-size:9px;color:var(--text-dim);letter-spacing:.08em">FUENTE</span>
-      <span id="data-source-badge" style="font-family:var(--mono);font-size:10px;color:var(--accent);font-weight:600">Yahoo Finance</span>
+  <div style="display:flex;flex-direction:column;gap:3px;margin-left:4px">
+    <span style="font-family:var(--mono);font-size:9px;color:var(--text-dim);letter-spacing:.08em">FUENTE</span>
+    <span id="data-source-badge" style="font-family:var(--mono);font-size:10px;color:var(--accent);font-weight:600">Yahoo Finance</span>
+  </div>
+</div>
+<!-- 00 PORTFOLIO DASHBOARD -->
+<div class="panel active" id="panel-dashboard">
+  <div class="loading" id="loading-dashboard"><div class="loader-bar"><div class="loader-fill"></div></div><div class="loading-txt">DESCARGANDO PORTFOLIO · CALCULANDO MÉTRICAS...</div></div>
+  <div class="err-box" id="error-dashboard"></div>
+  <div id="results-dashboard" style="display:none;flex-direction:column;gap:16px">
+    <div class="res-header">
+      <span class="res-title">Portfolio Dashboard<span class="res-ticker" id="rt-dashboard"></span></span>
+      <span class="res-ts" id="ts-dashboard"></span>
     </div>
+    <!-- KPIs principales -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px" id="dash-kpis"></div>
+    <!-- Equity curve -->
+    <div class="chart-box" style="grid-column:span 2">
+      <div class="chart-box-title">Equity Curve — Portfolio vs Benchmark (Base 100)</div>
+      <div id="dash-equity" style="height:280px"></div>
+    </div>
+    <!-- Fila de 3 charts -->
+    <div class="chart-grid">
+      <div class="chart-box"><div class="chart-box-title">Asset Allocation</div><div id="dash-alloc" style="height:260px"></div></div>
+      <div class="chart-box"><div class="chart-box-title">Contribución al Retorno por Activo</div><div id="dash-contrib-ret" style="height:260px"></div></div>
+      <div class="chart-box"><div class="chart-box-title">Contribución al Riesgo por Activo</div><div id="dash-contrib-risk" style="height:260px"></div></div>
+    </div>
+    <!-- Rolling metrics -->
+    <div class="chart-grid">
+      <div class="chart-box"><div class="chart-box-title">Volatilidad Rolling 63d (anualizada)</div><div id="dash-rollvol" style="height:220px"></div></div>
+      <div class="chart-box"><div class="chart-box-title">Sharpe Rolling 63d</div><div id="dash-rollsharpe" style="height:220px"></div></div>
+    </div>
+    <!-- Tabla resumen por activo -->
+    <div class="chart-box">
+      <div class="chart-box-title">Resumen por activo</div>
+      <div style="overflow-x:auto">
+        <table class="data-table">
+          <thead><tr><th>Activo</th><th>Peso %</th><th>Monto USD</th><th>Ret. Anual</th><th>Vol. Anual</th><th>Sharpe</th><th>Beta vs Bench</th><th>Alfa</th><th>Max DD</th><th>Contrib. Ret.</th></tr></thead>
+          <tbody id="dash-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="insight-box"><h3>⬡ Análisis · Claude</h3><div class="insight-content" id="insight-dashboard">—</div></div>
+  </div>
 </div>
 <!-- PANELS HELPER MACRO: loading + error + results wrapper -->
 <!-- 01 COVARIANZA -->
-<div class="panel active" id="panel-covarianza">
+<div class="panel" id="panel-covarianza">
   <div class="loading" id="loading-covarianza"><div class="loader-bar"><div class="loader-fill"></div></div><div class="loading-txt">DESCARGANDO DATOS · CALCULANDO MATRIZ Σ...</div></div>
   <div class="err-box" id="error-covarianza"></div>
   <div id="results-covarianza" style="display:none;flex-direction:column;gap:14px">
@@ -1055,8 +1101,111 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
 <script>
 /* ═══════════════════════════ ESTADO ═══════════════════════════ */
 let apiKey = sessionStorage.getItem('aci_api_key') || '';
-// Pre-cargar FMP key si no estaba guardada
 if(!sessionStorage.getItem('fmp_key')) sessionStorage.setItem('fmp_key','ATs53ItdtP1XcU7YnooOEDzwgRQk737E');
+
+/* ── Portfolio State global ── */
+const PORT = {
+  tickers:   [],
+  weights:   [],   // normalizados a suma 1
+  capital:   100000,
+  benchmark: 'SPY',
+  period:    '2y',
+  freq:      'daily',
+};
+function syncPortState(){
+  const raw = document.getElementById('input-tickers')?.value.trim();
+  PORT.tickers = raw ? raw.split(/[\s,]+/).filter(Boolean).map(t=>t.toUpperCase()) : [];
+  const wRaw = document.getElementById('input-weights')?.value.trim();
+  const wArr = wRaw ? wRaw.split(',').map(v=>parseFloat(v.trim())/100) : [];
+  PORT.weights = parsePortWeights(PORT.tickers, wArr);
+  PORT.capital = parseFloat(document.getElementById('input-capital')?.value)||100000;
+  PORT.benchmark = (document.getElementById('input-benchmark')?.value.trim()||'SPY').toUpperCase();
+  PORT.period  = document.getElementById('input-period')?.value||'2y';
+  PORT.freq    = document.getElementById('input-freq')?.value||'daily';
+}
+function parsePortWeights(tickers, rawW){
+  if(!tickers.length) return [];
+  let w = rawW.length===tickers.length ? [...rawW] : tickers.map(()=>1/tickers.length);
+  const s = w.reduce((a,b)=>a+b,0);
+  return w.map(v=>v/s);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   calcPortfolioMetrics — función core, usada por todos los módulos
+   Inputs: tickers[], data{}, weights[], benchData{}, annFactor
+   Returns: objeto con todas las métricas de cartera
+   ════════════════════════════════════════════════════════════════ */
+function calcPortfolioMetrics(tickers, data, weights, benchData, annF=252){
+  const rf = 0.04;
+  // Retornos individuales alineados
+  const allR = tickers.map(t=>data[t].returns);
+  const n = Math.min(...allR.map(r=>r.length));
+  const rAligned = allR.map(r=>r.slice(-n));
+  // Retornos diarios ponderados de la cartera
+  const portR = Array.from({length:n},(_,i)=>rAligned.reduce((s,r,k)=>s+weights[k]*r[i],0));
+  // Equity curve
+  const portEq = portR.reduce((acc,r)=>{acc.push(acc[acc.length-1]*(1+r));return acc;},[1]);
+  // Métricas anualizadas
+  const portRetAnn = (1+mean(portR))**annF-1;
+  const portVolAnn = std(portR)*Math.sqrt(annF);
+  const portSharpe = portVolAnn>0?(portRetAnn-rf)/portVolAnn:0;
+  // Drawdown
+  let peak=-Infinity;
+  const ddSeries = portEq.map(v=>{peak=Math.max(peak,v);return v/peak-1;});
+  const portMDD = Math.min(...ddSeries);
+  // CAGR real
+  const portCAGR = portEq[portEq.length-1]**(annF/n)-1;
+  // VaR
+  const sortedR = [...portR].sort((a,b)=>a-b);
+  const varIdx95 = Math.floor(n*0.05), varIdx99 = Math.floor(n*0.01);
+  const portVaR95 = -sortedR[varIdx95];
+  const portVaR99 = -sortedR[varIdx99];
+  const portCVaR95 = -mean(sortedR.slice(0,varIdx95+1));
+  // Beta y alfa vs benchmark
+  let portBeta=null, portAlpha=null, portCAPM=null, trackErr=null, infoRatio=null;
+  if(benchData && benchData.returns && benchData.returns.length>=n){
+    const bR = benchData.returns.slice(-n);
+    const bRetAnn = (1+mean(bR))**annF-1;
+    const varB = cov(bR,bR)||0.001;
+    portBeta = cov(portR,bR)/varB;
+    portCAPM = rf+portBeta*(bRetAnn-rf);
+    portAlpha = portRetAnn-portCAPM;
+    // Tracking error & Information Ratio
+    const activeR = portR.map((r,i)=>r-bR[i]);
+    trackErr = std(activeR)*Math.sqrt(annF);
+    const activeRet = portRetAnn-bRetAnn;
+    infoRatio = trackErr>0?activeRet/trackErr:null;
+  }
+  // Contribución al retorno por activo
+  const indivRetAnn = allR.map(r=>(1+mean(r.slice(-n)))**annF-1);
+  const contribRet = weights.map((w,i)=>w*indivRetAnn[i]);
+  // Contribución al riesgo (marginal, aproximada)
+  const covM = tickers.map((_,i)=>tickers.map((_,j)=>cov(rAligned[i],rAligned[j])*annF));
+  const portVar = weights.reduce((s,wi,i)=>s+weights.reduce((ss,wj,j)=>ss+wi*wj*covM[i][j],0),0);
+  const contribRisk = weights.map((wi,i)=>{
+    const mcr = weights.reduce((s,wj,j)=>s+wj*covM[i][j],0);
+    return portVar>0?wi*mcr/portVolAnn:0;
+  });
+  // HHI (Herfindahl)
+  const hhi = weights.reduce((s,w)=>s+w*w,0);
+  // Individual metrics
+  const indivVol = allR.map(r=>std(r.slice(-n))*Math.sqrt(annF));
+  const indivBeta = benchData?allR.map(r=>{const bR=benchData.returns.slice(-n);return cov(r.slice(-n),bR)/(cov(bR,bR)||0.001);}):null;
+  const indivAlpha = indivBeta?indivRetAnn.map((r,i)=>{const bRetAnn=(1+mean(benchData.returns.slice(-n)))**annF-1;return r-(rf+indivBeta[i]*(bRetAnn-rf));}):null;
+  const indivDD = allR.map(r=>{
+    const eq=r.slice(-n).reduce((a,v)=>{a.push(a[a.length-1]*(1+v));return a;},[1]);
+    let pk=-Infinity; return Math.min(...eq.map(v=>{pk=Math.max(pk,v);return v/pk-1;}));
+  });
+  const indivSharpe = indivRetAnn.map((r,i)=>indivVol[i]>0?(r-rf)/indivVol[i]:0);
+  return{
+    portR,portEq,portRetAnn,portVolAnn,portSharpe,portMDD,portCAGR,
+    portVaR95,portVaR99,portCVaR95,
+    portBeta,portAlpha,portCAPM,trackErr,infoRatio,hhi,
+    contribRet,contribRisk,ddSeries,
+    indivRetAnn,indivVol,indivBeta,indivAlpha,indivDD,indivSharpe,
+    n, annF,
+  };
+}
 const PLT = {
   paper_bgcolor:'#13161D',plot_bgcolor:'#13161D',
   font:{family:'IBM Plex Mono,monospace',color:'#C8D0E0',size:11},
@@ -1082,7 +1231,7 @@ if(apiKey){
 }
 function setStatus(t,c){const e=document.getElementById('status-text');e.textContent=t;e.className=c}
 /* ═══════════════════════════ NAVEGACIÓN ═══════════════════════════ */
-let currentPanel='covarianza';
+let currentPanel='dashboard';
 function switchPanel(id){
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
@@ -1091,7 +1240,7 @@ function switchPanel(id){
   if(nav)nav.classList.add('active');
   currentPanel=id;
 }
-switchPanel('covarianza');
+switchPanel('dashboard');
 /* ═══════════════════════════ CLAUDE API ═══════════════════════════ */
 async function callClaude(sys,usr){
   if(!apiKey)throw new Error('Configurá la API key primero.');
@@ -1190,15 +1339,124 @@ function findPeaksValleys(arr,minDist=15){
   }
   return{peaks,valleys};
 }
+/* ═══════════════════════════ 00 DASHBOARD ═══════════════════════════ */
+async function runDashboard(tickers){
+  const id='dashboard';
+  showL(id);hideE(id);hideR(id);
+  try{
+    syncPortState();
+    const T=PORT.tickers.length?PORT.tickers:tickers;
+    if(!T.length) throw new Error('Ingresá al menos un ticker en "Activos del portfolio".');
+    const W=PORT.weights.length===T.length?PORT.weights:T.map(()=>1/T.length);
+    const bench=PORT.benchmark||'SPY';
+    const period=PORT.period||'2y';
+    const capital=PORT.capital||100000;
+    const allFetch=[...new Set([...T,bench])];
+    const dataArr=await fetchMultiYahoo(allFetch,period);
+    const data={};
+    dataArr.forEach(d=>{
+      const returns=d.close.map((c,i)=>i===0?0:(c-d.close[i-1])/d.close[i-1]);
+      data[d.ticker]={dates:d.dates,prices:d.close,returns,high:d.high,low:d.low};
+    });
+    const validT=T.filter(t=>data[t]);
+    if(!validT.length) throw new Error('No se pudieron cargar datos de ningún ticker.');
+    const wRaw=validT.map(t=>{const i=T.indexOf(t);return i>=0?W[i]:1/validT.length;});
+    const wSum=wRaw.reduce((a,b)=>a+b,0);
+    const wNorm=wRaw.map(v=>v/wSum);
+    const benchData=data[bench]||null;
+    const m=calcPortfolioMetrics(validT,data,wNorm,benchData);
+    const dates=data[validT[0]].dates.slice(-m.n);
+    const fmt=(v,dec=2)=>v==null?'—':(v>=0?'+':'')+((v*100).toFixed(dec))+'%';
+    const cls=v=>v==null?'':v>=0?'pos':'neg';
+    // ── KPI grid ──
+    document.getElementById('dash-kpis').innerHTML=[
+      {label:'Capital',value:'$'+capital.toLocaleString('en-US'),c:''},
+      {label:'Ret. Anual',value:fmt(m.portRetAnn),c:cls(m.portRetAnn)},
+      {label:'CAGR',value:fmt(m.portCAGR),c:cls(m.portCAGR)},
+      {label:'Volatilidad',value:(m.portVolAnn*100).toFixed(1)+'%',c:''},
+      {label:'Sharpe',value:m.portSharpe.toFixed(2),c:m.portSharpe>1?'pos':m.portSharpe<0?'neg':''},
+      {label:'Beta vs '+bench,value:m.portBeta!=null?m.portBeta.toFixed(3):'—',c:''},
+      {label:'Alfa',value:m.portAlpha!=null?fmt(m.portAlpha):'—',c:m.portAlpha!=null?cls(m.portAlpha):''},
+      {label:'Max Drawdown',value:(m.portMDD*100).toFixed(1)+'%',c:'neg'},
+      {label:'VaR 95%',value:(m.portVaR95*100).toFixed(2)+'%',c:'neg'},
+      {label:'CVaR 95%',value:(m.portCVaR95*100).toFixed(2)+'%',c:'neg'},
+      {label:'Track. Error',value:m.trackErr!=null?(m.trackErr*100).toFixed(2)+'%':'—',c:''},
+      {label:'Info Ratio',value:m.infoRatio!=null?m.infoRatio.toFixed(3):'—',c:m.infoRatio!=null?cls(m.infoRatio):''},
+      {label:'HHI Conc.',value:m.hhi.toFixed(3),c:m.hhi>0.25?'neg':'pos'},
+      {label:'Activos',value:validT.length,c:''},
+    ].map(c=>`<div class="metric-chip"><span class="metric-label">${c.label}</span><span class="metric-value ${c.c}">${c.value}</span></div>`).join('');
+    // ── Equity curve vs benchmark (base 100) ──
+    const portEq100=m.portEq.map(v=>+(v*100).toFixed(4));
+    const eqTraces=[{x:dates,y:portEq100,type:'scatter',mode:'lines',name:'Portfolio',line:{color:'#00D4AA',width:2}}];
+    if(benchData){
+      const bR=benchData.returns.slice(-m.n);
+      const bEq=bR.reduce((acc,r)=>{acc.push(acc[acc.length-1]*(1+r));return acc;},[1]);
+      eqTraces.push({x:dates,y:bEq.map(v=>+(v*100).toFixed(4)),type:'scatter',mode:'lines',name:bench,line:{color:'#7B8CDE',width:1.5,dash:'dot'}});
+    }
+    eqTraces.push({x:dates,y:m.ddSeries.map(v=>+(v*100).toFixed(2)),type:'scatter',mode:'lines',name:'Drawdown%',yaxis:'y2',line:{color:'#E05252',width:1},fill:'tozeroy',fillcolor:'rgba(224,82,82,.08)',visible:'legendonly'});
+    Plotly.newPlot('dash-equity',eqTraces,{...L({yaxis:{...PLT.yaxis,title:'Índice (base 100)'}}),yaxis2:{...PLT.yaxis,overlaying:'y',side:'right',showgrid:false,title:'DD%'}},CFG);
+    // ── Allocation pie ──
+    Plotly.newPlot('dash-alloc',[{values:wNorm.map(v=>+(v*100).toFixed(2)),labels:validT,type:'pie',marker:{colors:C.slice(0,validT.length)},textinfo:'label+percent',textfont:{color:'#C8D0E0',size:10},hole:.4}],L({margin:{l:10,r:10,t:10,b:10},showlegend:false}),CFG);
+    // ── Contribución al retorno ──
+    Plotly.newPlot('dash-contrib-ret',[{x:validT,y:m.contribRet.map(v=>+(v*100).toFixed(3)),type:'bar',marker:{color:m.contribRet.map(v=>v>=0?'#00D4AA':'#E05252')}}],L({yaxis:{...PLT.yaxis,title:'Contrib. Ret. %'}}),CFG);
+    // ── Contribución al riesgo ──
+    Plotly.newPlot('dash-contrib-risk',[{x:validT,y:m.contribRisk.map(v=>+(v*100).toFixed(3)),type:'bar',marker:{color:C.slice(0,validT.length)}}],L({yaxis:{...PLT.yaxis,title:'Contrib. Riesgo %'}}),CFG);
+    // ── Rolling vol 63d ──
+    const win=63;
+    const rollDates=dates.slice(win);
+    const rollVol=[],rollSh=[];
+    for(let i=win;i<m.portR.length;i++){
+      const sl=m.portR.slice(i-win,i);
+      const v=std(sl)*Math.sqrt(252);
+      const r=(1+mean(sl))**252-1;
+      rollVol.push(+(v*100).toFixed(2));
+      rollSh.push(+(v>0?(r-.04)/v:0).toFixed(3));
+    }
+    Plotly.newPlot('dash-rollvol',[{x:rollDates,y:rollVol,type:'scatter',mode:'lines',name:'Vol 63d',line:{color:'#F5A623',width:1.5},fill:'tozeroy',fillcolor:'rgba(245,166,35,.08)'}],L({yaxis:{...PLT.yaxis,title:'σ anual %'}}),CFG);
+    Plotly.newPlot('dash-rollsharpe',[{x:rollDates,y:rollSh,type:'scatter',mode:'lines',name:'Sharpe 63d',line:{color:'#7B8CDE',width:1.5}},{x:[rollDates[0],rollDates[rollDates.length-1]],y:[0,0],type:'scatter',mode:'lines',name:'',line:{color:'#E05252',width:1,dash:'dot'},showlegend:false}],L({yaxis:{...PLT.yaxis,title:'Sharpe'}}),CFG);
+    // ── Tabla per-asset ──
+    document.getElementById('dash-tbody').innerHTML=validT.map((t,i)=>`<tr>
+      <td><b>${t}</b></td>
+      <td>${(wNorm[i]*100).toFixed(1)}%</td>
+      <td>$${Math.round(capital*wNorm[i]).toLocaleString('en-US')}</td>
+      <td class="${cls(m.indivRetAnn[i])}">${fmt(m.indivRetAnn[i])}</td>
+      <td>${(m.indivVol[i]*100).toFixed(1)}%</td>
+      <td class="${m.indivSharpe[i]>=1?'pos':m.indivSharpe[i]<0?'neg':''}">${m.indivSharpe[i].toFixed(2)}</td>
+      <td>${m.indivBeta?m.indivBeta[i].toFixed(3):'—'}</td>
+      <td class="${m.indivAlpha?cls(m.indivAlpha[i]):''}"> ${m.indivAlpha?fmt(m.indivAlpha[i]):'—'}</td>
+      <td class="neg">${(m.indivDD[i]*100).toFixed(1)}%</td>
+      <td class="${cls(m.contribRet[i])}">${(m.contribRet[i]*100).toFixed(2)}%</td>
+    </tr>`).join('');
+    setHdr(id,validT);
+    hideL(id);showR(id);
+    // ── Claude insight ──
+    if(apiKey){
+      const insight=await callClaude(SYS,
+        `Portfolio Analytics Dashboard. Cartera: ${validT.map((t,i)=>t+'='+(wNorm[i]*100).toFixed(1)+'%').join(', ')}. Capital: USD ${capital.toLocaleString('en-US')}. Benchmark: ${bench}.
+Ret. anual=${fmt(m.portRetAnn)}, CAGR=${fmt(m.portCAGR)}, Vol=${( m.portVolAnn*100).toFixed(1)}%, Sharpe=${m.portSharpe.toFixed(2)}, MaxDD=${(m.portMDD*100).toFixed(1)}%.
+Beta=${m.portBeta?.toFixed(3)||'—'}, Alfa=${m.portAlpha!=null?fmt(m.portAlpha):'—'}, TE=${m.trackErr!=null?(m.trackErr*100).toFixed(2)+'%':'—'}, IR=${m.infoRatio?.toFixed(3)||'—'}.
+VaR95=${(m.portVaR95*100).toFixed(2)}%, CVaR=${(m.portCVaR95*100).toFixed(2)}%, HHI=${m.hhi.toFixed(3)}.
+Contribs retorno: ${validT.map((t,i)=>t+'='+(m.contribRet[i]*100).toFixed(2)+'%').join(', ')}.
+Contribs riesgo: ${validT.map((t,i)=>t+'='+(m.contribRisk[i]*100).toFixed(2)+'%').join(', ')}.
+Diagnóstico ejecutivo conciso: diversificación, si el Sharpe justifica el riesgo, concentración, y una recomendación accionable.`);
+      setInsight(id,insight);
+    } else {
+      setInsight(id,'<p>Configurá tu Anthropic API key para ver el análisis de Claude.</p>');
+    }
+  }catch(e){hideL(id);showE(id,e.message);}
+}
 /* ═══════════════════════════ DISPATCHER ═══════════════════════════ */
 function runAnalysis(){
+  syncPortState();
   const raw=document.getElementById('input-tickers').value.trim();
-  if(!raw){alert('Ingresá al menos un ticker.');return}
-  if(!apiKey){alert('Configurá la API key primero.');return}
-  const tickers=raw.split(/[\s,]+/).filter(Boolean).map(t=>t.toUpperCase());
+  // Dashboard can run without API key (Claude insight is optional)
+  if(currentPanel!=='dashboard'&&!apiKey){alert('Configurá la API key primero.');return}
+  if(!raw&&!PORT.tickers.length){alert('Ingresá al menos un ticker.');return}
+  const tickers=(raw?raw.split(/[\s,]+/).filter(Boolean).map(t=>t.toUpperCase()):PORT.tickers);
   document.getElementById('btn-run').disabled=true;
   setStatus('⬡ procesando...','s-warn');
   const map={
+    'dashboard':runDashboard,
     'covarianza':runCovarianza,'pearson':runPearson,'pearson-nl':runPearsonNL,
     'frobenius':runFrobenius,'macd':runMACD,'estocastico':runEstocastico,
     'cci':runCCI,'hurst':runHurst,'elliott':runElliott,
@@ -1724,10 +1982,24 @@ async function runCAPM(tickers){
     w=w.map(x=>x/wSum);
 
     const allR=tickers.map(t=>data[t].returns);
-    // Mercado implícito = retorno ponderado del propio conjunto
-    const mktR=allR[0].map((_,i)=>allR.reduce((s,r,k)=>s+w[k]*r[i],0));
-    const mktAnn=(1+mean(mktR))**252-1, mktPrem=mktAnn-rf;
-    const varMkt=cov(mktR,mktR)||0.001;
+    // ── Benchmark externo (SPY o el configurado en PORT) ──
+    const benchTicker=(PORT.benchmark||document.getElementById('input-benchmark')?.value.trim()||'SPY').toUpperCase();
+    let mktR, mktAnn, mktPrem, varMkt, benchLabel=benchTicker;
+    try{
+      const bArr=await fetchMultiYahoo([benchTicker],PORT.period||'2y');
+      if(bArr.length&&bArr[0].close.length>10){
+        const bd=bArr[0];
+        mktR=bd.close.map((c,i)=>i===0?0:(c-bd.close[i-1])/bd.close[i-1]);
+        mktAnn=(1+mean(mktR))**252-1;
+      } else throw new Error('no data');
+    }catch(err){
+      // Fallback: mercado implícito del portafolio
+      benchLabel='Portafolio (fallback)';
+      mktR=allR[0].map((_,i)=>allR.reduce((s,r,k)=>s+w[k]*r[i],0));
+      mktAnn=(1+mean(mktR))**252-1;
+    }
+    mktPrem=mktAnn-rf;
+    varMkt=cov(mktR,mktR)||0.001;
 
     // ── Métricas individuales ──
     const betas  = allR.map(r=>cov(r,mktR)/varMkt);
@@ -1746,7 +2018,7 @@ async function runCAPM(tickers){
     const traces=[
       {x:bRange,y:bRange.map(b=>rf+b*mktPrem),type:'scatter',mode:'lines',name:'SML',line:{color:'#7B8CDE',width:2}},
       {x:[0],y:[rf],type:'scatter',mode:'markers',name:'Rf',marker:{color:'#8B6F47',size:10}},
-      {x:[1],y:[mktAnn],type:'scatter',mode:'markers',name:'Mercado',marker:{color:'#2A4365',size:12,symbol:'square'}},
+      {x:[1],y:[mktAnn],type:'scatter',mode:'markers',name:benchLabel,marker:{color:'#2A4365',size:12,symbol:'square'}},
       ...tickers.map((t,i)=>({
         x:[betas[i]],y:[retAnn[i]],type:'scatter',mode:'markers+text',name:t,
         text:[t],textposition:'top right',
@@ -1795,17 +2067,17 @@ async function runCAPM(tickers){
       {label:'Ret. cartera',value:(portRetAnn*100).toFixed(2)+'%',cls:portRetAnn>0?'pos':'neg'},
       {label:'Alfa cartera',value:(portAlpha*100).toFixed(2)+'%',cls:portAlpha>0?'pos':'neg'},
       {label:'Alfa positivos',value:alpha.filter(a=>a>0).length+'/'+tickers.length,cls:'pos'},
-      {label:'Ret. mercado',value:(mktAnn*100).toFixed(2)+'%',cls:mktAnn>0?'pos':'neg'},
+      {label:'Ret. '+benchLabel,value:(mktAnn*100).toFixed(2)+'%',cls:mktAnn>0?'pos':'neg'},
       {label:'Prima riesgo',value:(mktPrem*100).toFixed(2)+'%'},
     ]);
 
     const insight=await callClaude(SYS,
-      `CAPM/SML para cartera ponderada de ${tickers.join(', ')} con pesos ${w.map((v,i)=>tickers[i]+'='+( v*100).toFixed(1)+'%').join(', ')}.
-Rf=${(rf*100).toFixed(1)}%, retorno mercado implícito=${(mktAnn*100).toFixed(2)}%, prima=${(mktPrem*100).toFixed(2)}%.
+      `CAPM/SML para cartera ponderada de ${tickers.join(', ')} con pesos ${w.map((v,i)=>tickers[i]+'='+(v*100).toFixed(1)+'%').join(', ')}.
+Benchmark: ${benchLabel}. Rf=${(rf*100).toFixed(1)}%, ret. benchmark=${(mktAnn*100).toFixed(2)}%, prima=${(mktPrem*100).toFixed(2)}%.
 Betas individuales: ${tickers.map((t,i)=>`${t}=${betas[i].toFixed(3)}`).join(', ')}.
 ★ CARTERA: Beta=${portBeta.toFixed(3)}, Retorno realizado=${(portRetAnn*100).toFixed(2)}%, CAPM E[R]=${(portCAPM*100).toFixed(2)}%, Alfa=${(portAlpha*100).toFixed(2)}%.
 Alfas individuales: ${tickers.map((t,i)=>`${t}=${(alpha[i]*100).toFixed(2)}%`).join(', ')}.
-Interpretá: (1) nivel de riesgo sistemático de la cartera, (2) si el alfa de cartera justifica el riesgo tomado, (3) qué activo está distorsionando más el beta.`);
+Interpretá: (1) nivel de riesgo sistemático de la cartera vs ${benchLabel}, (2) si el alfa de cartera justifica el riesgo tomado, (3) qué activo distorsiona más el beta.`);
     setInsight('capm',insight);
   });
 }
@@ -3520,6 +3792,7 @@ if(typeof extraModules!=='undefined'){
 /* ============ MULTI-SELECCION DE INDICADORES + CONCLUSION INTEGRADA ============ */
 (function(){
   const ALL = {
+    'dashboard':runDashboard,
     'covarianza':runCovarianza,'pearson':runPearson,'pearson-nl':runPearsonNL,
     'frobenius':runFrobenius,'macd':runMACD,'estocastico':runEstocastico,
     'cci':runCCI,'hurst':runHurst,'elliott':runElliott,
