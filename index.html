@@ -959,7 +959,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
 
     <!-- PASO 3: Restricciones -->
     <div class="constructor-section">
-      <div class="constructor-section-title">③ Restricciones y preferencias</div>
+      <div class="constructor-section-title">③ Restricciones y preferencias de moneda</div>
       <div class="constructor-grid">
         <div class="cq-block">
           <label class="cq-label">Exposición a riesgo soberano</label>
@@ -971,12 +971,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
           </select>
         </div>
         <div class="cq-block">
-          <label class="cq-label">Tipo de cambio preferido</label>
+          <label class="cq-label">Moneda de cartera</label>
           <select class="cq-select" id="c-fx">
             <option value="hd" selected>Hard Dollar preferido</option>
             <option value="ars">Pesos (CER / tasa fija)</option>
             <option value="mix">Mix equilibrado</option>
+            <option value="full_usd">Full USD — sin pesos</option>
           </select>
+          <span class="cq-hint">Full USD: solo HD + ONs + CEDEARs</span>
         </div>
         <div class="cq-block">
           <label class="cq-label">Moneda de medición</label>
@@ -984,6 +986,35 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
             <option value="usd" selected>USD</option>
             <option value="ars">ARS</option>
           </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- PASO 4: Renta Variable -->
+    <div class="constructor-section">
+      <div class="constructor-section-title">④ Renta variable</div>
+      <div class="constructor-grid">
+        <div class="cq-block">
+          <label class="cq-label">Incluir acciones / CEDEARs</label>
+          <select class="cq-select" id="c-rv">
+            <option value="no">No incluir renta variable</option>
+            <option value="cedears" selected>CEDEARs (SPY, AAPL, MSFT…)</option>
+            <option value="acciones">Acciones locales (Merval)</option>
+            <option value="ambas">Ambas (acciones + CEDEARs)</option>
+          </select>
+        </div>
+        <div class="cq-block">
+          <label class="cq-label">Liquidez mínima de acciones</label>
+          <select class="cq-select" id="c-liq-rv">
+            <option value="alta" selected>Alta — solo top 10 Merval</option>
+            <option value="media">Media — panel general líquido</option>
+          </select>
+          <span class="cq-hint">Acciones con bajo volumen no se pueden operar</span>
+        </div>
+        <div class="cq-block">
+          <label class="cq-label">% máximo en renta variable</label>
+          <input class="cq-input" type="number" id="c-rv-max" value="30" min="0" max="80" step="5">
+          <span class="cq-hint">Cap sobre el total de la cartera</span>
         </div>
       </div>
     </div>
@@ -1008,7 +1039,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
       <div class="constructor-section" style="gap:10px">
         <div class="constructor-section-title">Instrumentos sugeridos · BYMA</div>
         <table class="data-table">
-          <thead><tr><th>Categoría</th><th>Ticker</th><th>Instrumento</th><th>Tipo</th><th>TIR / Rendimiento ref.</th><th>Monto USD</th></tr></thead>
+          <thead><tr><th>Categoría</th><th>Ticker</th><th>Instrumento</th><th>Tipo</th><th>TIR / Rendimiento ref.</th><th>Liquidez</th><th>Monto USD</th></tr></thead>
           <tbody id="c-tbody"></tbody>
         </table>
       </div>
@@ -2009,120 +2040,174 @@ async function buildConstructor(){
   statusEl.textContent='⬡ calculando allocation...';
   statusEl.style.color='var(--accent2)';
   try{
-    const obj  = document.getElementById('c-obj').value;
-    const hor  = document.getElementById('c-hor').value;
-    const tol  = parseInt(document.getElementById('c-tol').value)||20;
-    const cap  = parseFloat(document.getElementById('c-cap').value)||50000;
-    const liq  = parseFloat(document.getElementById('c-liq').value)||20;
-    const ret  = parseFloat(document.getElementById('c-ret').value)||10;
-    const dd   = parseFloat(document.getElementById('c-dd').value)||20;
-    const sov  = document.getElementById('c-sov').value;
-    const fx   = document.getElementById('c-fx').value;
+    const obj    = document.getElementById('c-obj').value;
+    const hor    = document.getElementById('c-hor').value;
+    const tol    = parseInt(document.getElementById('c-tol').value)||20;
+    const cap    = parseFloat(document.getElementById('c-cap').value)||50000;
+    const liq    = parseFloat(document.getElementById('c-liq').value)||20;
+    const ret    = parseFloat(document.getElementById('c-ret').value)||10;
+    const dd     = parseFloat(document.getElementById('c-dd').value)||20;
+    const sov    = document.getElementById('c-sov').value;
+    const fx     = document.getElementById('c-fx').value;
+    const rv     = document.getElementById('c-rv').value;
+    const liqRV  = document.getElementById('c-liq-rv').value;
+    const rvMax  = parseFloat(document.getElementById('c-rv-max').value)||30;
 
-    // base matrices by objective
+    // ── Base matrices (incluye rv_loc y rv_ced desde el inicio) ──
     const base = {
-      preservar:   {mm:30, lecap:40, cer:20, hd:5,  on:5},
-      renta:       {mm:10, lecap:30, cer:20, hd:20, on:20},
-      crecimiento: {mm:5,  lecap:20, cer:20, hd:35, on:20},
-      meta:        {mm:20, lecap:35, cer:25, hd:10, on:10},
+      preservar:   {mm:28,lecap:34,cer:18,hd:5, on:5, rv_loc:0, rv_ced:10},
+      renta:       {mm:8, lecap:22,cer:12,hd:18,on:18,rv_loc:5, rv_ced:17},
+      crecimiento: {mm:4, lecap:10,cer:8, hd:22,on:14,rv_loc:12,rv_ced:30},
+      meta:        {mm:18,lecap:28,cer:18,hd:10,on:10,rv_loc:2, rv_ced:14},
     };
-    let w = {...(base[obj]||base['crecimiento'])};
+    let w={...(base[obj]||base['crecimiento'])};
 
-    // horizonte adjustment
-    if(hor==='corto'){ w.mm+=10; w.lecap+=10; w.hd-=15; w.on-=5; }
-    else if(hor==='largo'){ w.mm-=5; w.lecap-=5; w.hd+=5; w.cer+=5; }
+    // ── Horizonte ──
+    if(hor==='corto'){ w.mm+=10;w.lecap+=10;w.hd-=10;w.on-=5;w.rv_loc-=3;w.rv_ced-=2; }
+    else if(hor==='largo'){ w.mm-=5;w.lecap-=5;w.hd+=5;w.cer+=3;w.rv_loc+=1;w.rv_ced+=1; }
 
-    // tolerance adjustment
-    if(tol<=10){ w.mm+=10; w.lecap+=10; w.hd-=15; w.cer+=5; w.on-=10; }
-    else if(tol>=40){ w.mm-=5; w.lecap-=10; w.hd+=10; w.on+=5; }
+    // ── Tolerancia ──
+    if(tol<=10){ w.mm+=10;w.lecap+=8;w.hd-=12;w.cer+=4;w.on-=8;w.rv_loc-=5;w.rv_ced-=5; }
+    else if(tol>=40){ w.mm-=5;w.lecap-=8;w.hd+=8;w.on+=3;w.rv_loc+=2; }
 
-    // soberano cap adjustment
-    if(sov==='sin'){ w.on+=w.hd; w.hd=0; }
-    else if(sov==='bajo'){ if(w.hd>15){ const exc=w.hd-15; w.hd=15; w.on+=exc*0.5; w.lecap+=exc*0.5; } }
-    else if(sov==='alto'){ w.hd+=10; w.lecap-=5; w.mm-=5; }
+    // ── Soberano cap ──
+    if(sov==='sin'){ w.on+=w.hd;w.hd=0; }
+    else if(sov==='bajo'){ if(w.hd>15){const exc=w.hd-15;w.hd=15;w.on+=exc*0.5;w.lecap+=exc*0.5;} }
+    else if(sov==='alto'){ w.hd+=10;w.lecap-=5;w.mm-=5; }
 
-    // FX adjustment
-    if(fx==='ars'){ w.cer+=10; w.lecap+=10; w.hd-=15; w.on-=5; }
-    else if(fx==='hd'){ w.hd+=5; w.on+=5; w.mm-=5; w.cer-=5; }
+    // ── FX / moneda ──
+    if(fx==='full_usd'){
+      // Eliminar todo pesos: mm, lecap, cer → redistribuir a hd, on, rv_ced
+      const pesosSaldo=w.mm+w.lecap+w.cer;
+      w.mm=0;w.lecap=0;w.cer=0;
+      w.hd+=pesosSaldo*0.35;w.on+=pesosSaldo*0.35;w.rv_ced+=pesosSaldo*0.30;
+    } else if(fx==='ars'){
+      w.cer+=10;w.lecap+=10;w.hd-=12;w.on-=5;w.rv_ced-=3;
+    } else if(fx==='hd'){
+      w.hd+=5;w.on+=5;w.mm-=5;w.cer-=5;
+    }
 
-    // liquidity adjustment
+    // ── Renta Variable: aplicar selección y cap ──
+    if(rv==='no'){ w.rv_loc=0;w.rv_ced=0; }
+    else if(rv==='cedears'){ w.rv_loc=0; }
+    else if(rv==='acciones'){ w.rv_ced=0; }
+    // Aplicar cap máximo
+    const totalRV=w.rv_loc+w.rv_ced;
+    if(totalRV>rvMax){
+      const scale=rvMax/totalRV;
+      const exc=totalRV-rvMax;
+      w.rv_loc*=scale;w.rv_ced*=scale;
+      // Redistribuir excedente a hd y on
+      w.hd+=exc*0.5;w.on+=exc*0.5;
+    }
+
+    // ── Liquidez extra ──
     const liqExtra=Math.max(0,liq-20);
-    if(liqExtra>0){ w.mm+=liqExtra*0.6; w.lecap+=liqExtra*0.4; w.hd-=liqExtra*0.7; w.on-=liqExtra*0.3; }
+    if(liqExtra>0){ w.mm+=liqExtra*0.5;w.lecap+=liqExtra*0.3;w.hd-=liqExtra*0.5;w.on-=liqExtra*0.2;w.rv_ced-=liqExtra*0.1; }
 
-    // normalize to 100
-    const keys=['mm','lecap','cer','hd','on'];
-    keys.forEach(k=>{w[k]=Math.max(0,w[k]);});
+    // ── Normalizar a 100 ──
+    const keys=['mm','lecap','cer','hd','on','rv_loc','rv_ced'];
+    keys.forEach(k=>{w[k]=Math.max(0,w[k]||0);});
     const tot=keys.reduce((s,k)=>s+w[k],0);
     keys.forEach(k=>{w[k]=Math.round(w[k]/tot*100);});
     const diff=100-keys.reduce((s,k)=>s+w[k],0);
-    w['hd']+=diff;
+    // Ajustar el mayor peso para cerrar a 100
+    const maxK=keys.reduce((a,b)=>w[a]>w[b]?a:b);
+    w[maxK]+=diff;
 
-    // expected returns/risk per category (USD equiv estimates)
+    // ── Expected returns/risk (USD equiv) ──
     const exp={
-      mm:    {ret:3,  vol:1,  label:'Money Market / Caución'},
-      lecap: {ret:8,  vol:6,  label:'Tasa Fija ARS (Lecap/Boncap)'},
-      cer:   {ret:6,  vol:5,  label:'CER / Inflación-linked'},
-      hd:    {ret:14, vol:20, label:'Soberanos Hard Dollar'},
-      on:    {ret:9,  vol:8,  label:'ONs Corporativas'},
+      mm:     {ret:3,  vol:1,  label:'Money Market / Caución'},
+      lecap:  {ret:8,  vol:6,  label:'Tasa Fija ARS (Lecap/Boncap)'},
+      cer:    {ret:6,  vol:5,  label:'CER / Inflación-linked'},
+      hd:     {ret:14, vol:20, label:'Soberanos Hard Dollar'},
+      on:     {ret:9,  vol:8,  label:'ONs Corporativas'},
+      rv_loc: {ret:20, vol:38, label:'Acciones Locales (Merval)'},
+      rv_ced: {ret:12, vol:18, label:'CEDEARs (Acciones EE.UU.)'},
     };
 
-    // portfolio blend metrics
     const portRet=keys.reduce((s,k)=>s+w[k]/100*exp[k].ret,0);
     const portVol=Math.sqrt(keys.reduce((s,k)=>s+Math.pow(w[k]/100*exp[k].vol,2),0));
     const sharpe=(portRet-4.5)/portVol;
     const varP=portVol*1.645;
     const maxDD=portVol*2.2;
 
-    // instruments per category (BYMA)
+    // ── Instrumentos por categoría ──
+    const accionesAlta=[
+      {ticker:'GGAL', name:'Grupo Financiero Galicia',   tipo:'Banco · Merval top',    tir:'Alta liquidez · +ADR NYSE'},
+      {ticker:'YPF',  name:'YPF S.A.',                   tipo:'Energía · Merval top',  tir:'Alta liquidez · +ADR NYSE'},
+      {ticker:'PAMP', name:'Pampa Energía',               tipo:'Energía · Merval top',  tir:'Alta liquidez · +ADR NYSE'},
+      {ticker:'BMA',  name:'Banco Macro',                 tipo:'Banco · Merval top',    tir:'Alta liquidez · +ADR NYSE'},
+      {ticker:'TXAR', name:'Ternium Argentina',           tipo:'Siderurgia',            tir:'Alta liquidez'},
+    ];
+    const accionesMedia=[
+      ...accionesAlta,
+      {ticker:'MIRG', name:'Mirgor S.A.',                 tipo:'Tecnología / Electr.',  tir:'Liquidez media'},
+      {ticker:'VALO', name:'Grupo Financiero Valores',    tipo:'Servicios financieros', tir:'Liquidez media'},
+      {ticker:'TECO2',name:'Telecom Argentina',           tipo:'Telecomunicaciones',    tir:'Liquidez media'},
+    ];
     const instruments={
       mm:[
-        {ticker:'FIMA GB', name:'FCI Fima Premium (Money Market)',    tipo:'FCI Money Market',   tir:'ref 40-50% TNA ARS'},
-        {ticker:'CAUROB',  name:'Caución Bursátil BYMA 1-7d',         tipo:'Caución BYMA',        tir:'~TAMAR - corto plazo'},
+        {ticker:'FIMA GB', name:'FCI Fima Premium (Money Market)',  tipo:'FCI Money Market',   tir:'~40-50% TNA ARS', liq:'Muy alta'},
+        {ticker:'CAUROB',  name:'Caución Bursátil BYMA 1-7d',       tipo:'Caución BYMA',        tir:'~TAMAR corto plazo', liq:'Muy alta'},
       ],
       lecap:[
-        {ticker:'S31M6',   name:'LECAP Vto. Marzo 2026',              tipo:'Letra Capitalizable', tir:'~3.0% TEM'},
-        {ticker:'T17O6',   name:'LECAP Vto. Oct 2026',                tipo:'Letra Capitalizable', tir:'~2.8% TEM'},
-        {ticker:'T30E7',   name:'BONCAP Vto. Ene 2027',               tipo:'Bono Capitalizable',  tir:'~2.7% TEM'},
+        {ticker:'S31M6',  name:'LECAP Vto. Marzo 2026',   tipo:'Letra Capitalizable', tir:'~3.0% TEM', liq:'Alta'},
+        {ticker:'T17O6',  name:'LECAP Vto. Oct 2026',     tipo:'Letra Capitalizable', tir:'~2.8% TEM', liq:'Alta'},
+        {ticker:'T30E7',  name:'BONCAP Vto. Ene 2027',    tipo:'Bono Capitalizable',  tir:'~2.7% TEM', liq:'Alta'},
       ],
       cer:[
-        {ticker:'X18A6',   name:'LECER Vto. Abr 2026',                tipo:'Letra CER',           tir:'CER + 3%'},
-        {ticker:'TX26',    name:'BONCER Vto. Nov 2026',                tipo:'Bono CER',            tir:'CER + 5%'},
-        {ticker:'DICP',    name:'BONCER Vto. Dic 2033',                tipo:'Bono CER largo',      tir:'CER + 7%'},
+        {ticker:'X18A6', name:'LECER Vto. Abr 2026',    tipo:'Letra CER',       tir:'CER+3%', liq:'Alta'},
+        {ticker:'TX26',  name:'BONCER Vto. Nov 2026',   tipo:'Bono CER',        tir:'CER+5%', liq:'Alta'},
+        {ticker:'DICP',  name:'BONCER Vto. Dic 2033',   tipo:'Bono CER largo',  tir:'CER+7%', liq:'Media'},
       ],
       hd:[
-        {ticker:'AL30',    name:'Bono Soberano 2030 (Ley Argentina)', tipo:'Hard Dollar',         tir:'~12-15% TIR USD'},
-        {ticker:'GD30',    name:'Bono Soberano 2030 (Ley NY)',        tipo:'Hard Dollar',         tir:'~12-15% TIR USD'},
-        {ticker:'AE38',    name:'Bono Soberano 2038',                 tipo:'Hard Dollar largo',   tir:'~13-16% TIR USD'},
+        {ticker:'AL30',  name:'Bono Soberano 2030 (Ley ARG)', tipo:'Hard Dollar',       tir:'~12-15% TIR USD', liq:'Muy alta'},
+        {ticker:'GD30',  name:'Bono Soberano 2030 (Ley NY)',  tipo:'Hard Dollar',       tir:'~12-15% TIR USD', liq:'Muy alta'},
+        {ticker:'AE38',  name:'Bono Soberano 2038',           tipo:'Hard Dollar largo', tir:'~13-16% TIR USD', liq:'Alta'},
       ],
       on:[
-        {ticker:'YCA6O',   name:'ON YPF 2026 Hard Dollar',            tipo:'ON Senior',           tir:'~8-10% TIR USD'},
-        {ticker:'PAM0',    name:'ON Pampa Energía Hard Dollar',        tipo:'ON Senior',           tir:'~7-9% TIR USD'},
-        {ticker:'TLCMO',   name:'ON Telecom 2026 Hard Dollar',         tipo:'ON Senior',           tir:'~7-9% TIR USD'},
+        {ticker:'YCA6O', name:'ON YPF 2026 Hard Dollar',    tipo:'ON Senior', tir:'~8-10% TIR USD', liq:'Alta'},
+        {ticker:'PAM0',  name:'ON Pampa Energía Hard Dollar',tipo:'ON Senior', tir:'~7-9% TIR USD',  liq:'Alta'},
+        {ticker:'TLCMO', name:'ON Telecom 2026 Hard Dollar', tipo:'ON Senior', tir:'~7-9% TIR USD',  liq:'Alta'},
+      ],
+      rv_loc: liqRV==='alta' ? accionesAlta : accionesMedia,
+      rv_ced:[
+        {ticker:'SPY',  name:'SPDR S&P 500 ETF (CEDEAR)',   tipo:'CEDEAR · ETF USA',  tir:'Índice S&P 500',    liq:'Muy alta'},
+        {ticker:'QQQ',  name:'Invesco QQQ NASDAQ (CEDEAR)',  tipo:'CEDEAR · ETF USA',  tir:'Índice NASDAQ 100', liq:'Muy alta'},
+        {ticker:'AAPL', name:'Apple Inc. (CEDEAR)',          tipo:'CEDEAR · Tech',     tir:'Acción individual', liq:'Alta'},
+        {ticker:'MSFT', name:'Microsoft Corp. (CEDEAR)',     tipo:'CEDEAR · Tech',     tir:'Acción individual', liq:'Alta'},
+        {ticker:'AMZN', name:'Amazon.com Inc. (CEDEAR)',     tipo:'CEDEAR · Tech',     tir:'Acción individual', liq:'Alta'},
+        {ticker:'GLD',  name:'SPDR Gold Shares (CEDEAR)',    tipo:'CEDEAR · Oro',      tir:'Cobertura inflación', liq:'Alta'},
       ],
     };
 
     const perfilMap={preservar:'Conservador · Preservación',renta:'Moderado · Generación de Renta',crecimiento:'Crecimiento Patrimonial',meta:'Objetivo Específico'};
     const horMap={corto:'Corto Plazo (0–2a)',mediano:'Mediano Plazo (3–7a)',largo:'Largo Plazo (10a+)'};
-    document.getElementById('c-perfil-chip').innerHTML=
-      `<b>Perfil:</b> ${perfilMap[obj]||obj} &nbsp;·&nbsp; ${horMap[hor]||hor} &nbsp;·&nbsp; Tolerancia: ${tol}% drawdown max &nbsp;·&nbsp; Capital: USD ${cap.toLocaleString()}`;
+    const fxLabel={hd:'Hard Dollar',ars:'Pesos',mix:'Mix ARS/USD',full_usd:'Full USD (sin pesos)'};
+    const rvLabel={no:'Sin RV',cedears:'CEDEARs',acciones:`Acciones (liq. ${liqRV})`,ambas:`Acciones + CEDEARs (liq. ${liqRV})`};
 
-    // render metrics chips inline (no setMetrics — standalone view)
+    document.getElementById('c-perfil-chip').innerHTML=
+      `<b>Perfil:</b> ${perfilMap[obj]||obj} &nbsp;·&nbsp; ${horMap[hor]||hor} &nbsp;·&nbsp; Tolerancia: ${tol}% max DD &nbsp;·&nbsp; <b>Moneda:</b> ${fxLabel[fx]||fx} &nbsp;·&nbsp; <b>RV:</b> ${rvLabel[rv]||rv} &nbsp;·&nbsp; Capital: <b>USD ${cap.toLocaleString()}</b>`;
+
     const mRow=document.getElementById('c-metrics');
     mRow.innerHTML='';
     [{l:'Retorno Esperado',v:`${portRet.toFixed(1)}% USD/año`},{l:'Volatilidad',v:`${portVol.toFixed(1)}%`},
      {l:'Sharpe Estimado',v:sharpe.toFixed(2)},{l:'VaR 95% anual',v:`${varP.toFixed(1)}%`},
      {l:'Max DD estimado',v:`${maxDD.toFixed(1)}%`},{l:'Capital invertido',v:`USD ${cap.toLocaleString()}`},
-     {l:'Retorno objetivo',v:`${ret}% USD/año`},{l:'Liquidez reservada',v:`${liq}%`},
+     {l:'Retorno objetivo',v:`${ret}% USD/año`},{l:'% Renta Variable',v:`${(w.rv_loc+w.rv_ced)}%`},
     ].forEach(m=>{mRow.innerHTML+=`<div class="metric-chip"><span class="metric-label">${m.l}</span><span class="metric-value">${m.v}</span></div>`;});
 
-    const colors=['#00D4AA','#4A9EFF','#FF6B6B','#FFD93D','#C77DFF'];
-    const catLabels=keys.map(k=>exp[k].label);
-    const catPcts=keys.map(k=>w[k]);
-    const catMontos=keys.map(k=>Math.round(cap*w[k]/100));
+    const colors=['#00D4AA','#4A9EFF','#6BCB77','#FF6B6B','#FFD93D','#C77DFF','#F5A623'];
+    const activeKeys=keys.filter(k=>w[k]>0);
+    const catLabels=activeKeys.map(k=>exp[k].label);
+    const catPcts=activeKeys.map(k=>w[k]);
+    const catMontos=activeKeys.map(k=>Math.round(cap*w[k]/100));
+    const catColors=activeKeys.map((_,i)=>colors[i%colors.length]);
 
     Plotly.newPlot('c-pie',[{
       type:'pie', labels:catLabels, values:catPcts, hole:0.45,
-      marker:{colors}, textinfo:'label+percent', textposition:'outside',
+      marker:{colors:catColors}, textinfo:'label+percent', textposition:'outside',
       hovertemplate:'<b>%{label}</b><br>%{value}% · USD %{customdata:,}<extra></extra>',
       customdata:catMontos,
     }],{
@@ -2134,15 +2219,15 @@ async function buildConstructor(){
 
     Plotly.newPlot('c-bubble',[
       {type:'scatter',mode:'markers+text',
-       x:keys.map(k=>exp[k].vol), y:keys.map(k=>exp[k].ret),
-       text:keys.map(k=>exp[k].label.split(' ')[0]),
+       x:activeKeys.map(k=>exp[k].vol), y:activeKeys.map(k=>exp[k].ret),
+       text:activeKeys.map(k=>exp[k].label.split(' ')[0]),
        textposition:'top center',
-       marker:{size:keys.map(k=>w[k]*3),color:colors,opacity:0.8,line:{color:'rgba(255,255,255,.2)',width:1}},
+       marker:{size:activeKeys.map(k=>Math.max(10,w[k]*2.5)),color:catColors,opacity:0.85,line:{color:'rgba(255,255,255,.2)',width:1}},
        hovertemplate:'<b>%{text}</b><br>Ret: %{y}% · Vol: %{x}%<extra></extra>',
       },
       {type:'scatter',mode:'markers+text',
-       x:[portVol], y:[portRet], text:['Cartera'], textposition:'top center',
-       marker:{size:[20],color:['#FFD93D'],symbol:'star',line:{color:'#fff',width:1}},
+       x:[portVol],y:[portRet],text:['★ Cartera'],textposition:'top center',
+       marker:{size:[22],color:['#FFD93D'],symbol:'star',line:{color:'#fff',width:1}},
        hovertemplate:'<b>Cartera</b><br>Ret: %{y:.1f}% · Vol: %{x:.1f}%<extra></extra>',
       }
     ],{
@@ -2153,56 +2238,64 @@ async function buildConstructor(){
       margin:{t:20,b:50,l:50,r:20},showlegend:false,
     },{responsive:true,displayModeBar:false});
 
-    // instruments table
+    // ── Tabla de instrumentos ──
     const tbody=document.getElementById('c-tbody');
     tbody.innerHTML='';
-    keys.forEach((k,ki)=>{
-      if(w[k]<=0) return;
-      const insts=instruments[k];
+    activeKeys.forEach((k,ki)=>{
+      const insts=instruments[k]||[];
+      if(!insts.length) return;
       const montoTotal=Math.round(cap*w[k]/100);
       const montoPerInst=Math.round(montoTotal/insts.length);
+      const col=catColors[ki];
       insts.forEach((inst,i)=>{
         const tr=document.createElement('tr');
         if(i===0){
           const td=document.createElement('td');
           td.rowSpan=insts.length;
-          td.innerHTML=`<span style="color:${colors[ki]};font-weight:bold">${exp[k].label}</span><br><small style="color:var(--text-dim)">${w[k]}% · USD ${montoTotal.toLocaleString()}</small>`;
+          td.innerHTML=`<span style="color:${col};font-weight:bold">${exp[k].label}</span><br><small style="color:var(--text-dim)">${w[k]}% · USD ${montoTotal.toLocaleString()}</small>`;
           tr.appendChild(td);
         }
         ['ticker','name','tipo','tir'].forEach(f=>{
           const td=document.createElement('td');
-          td.style.color=f==='ticker'?'var(--accent)':'';
-          if(f==='ticker') td.style.fontWeight='bold';
+          if(f==='ticker'){td.style.color='var(--accent)';td.style.fontWeight='bold';}
           td.textContent=inst[f];
           tr.appendChild(td);
         });
+        // Liquidez badge
+        const tdL=document.createElement('td');
+        const liqBadge=inst.liq||'—';
+        const liqColor=liqBadge==='Muy alta'?'var(--accent)':liqBadge==='Alta'?'var(--accent2)':'var(--text-dim)';
+        tdL.innerHTML=`<span style="color:${liqColor};font-size:10px">● ${liqBadge}</span>`;
+        tr.appendChild(tdL);
         const tdM=document.createElement('td');
-        tdM.style.color=colors[ki];
+        tdM.style.color=col;tdM.style.fontWeight='bold';
         tdM.textContent=`USD ${montoPerInst.toLocaleString()}`;
         tr.appendChild(tdM);
         tbody.appendChild(tr);
       });
     });
 
-    // warning if target return seems unreachable
+    // ── Warning ──
     const warnEl=document.getElementById('c-warning');
-    if(ret>portRet*1.3){
-      warnEl.style.display='block';
-      warnEl.textContent=`⚠️ Tu retorno objetivo (${ret}% USD/año) supera el retorno esperado de esta cartera (${portRet.toFixed(1)}% USD/año). Para alcanzarlo deberías aumentar exposición a activos de mayor riesgo (soberanos HD, ONs) o revisar el objetivo. Rendimientos esperados son estimativos y no garantizados.`;
-    } else { warnEl.style.display='none'; }
+    const warns=[];
+    if(ret>portRet*1.3) warns.push(`⚠️ Tu retorno objetivo (${ret}% USD/año) supera el retorno esperado de esta cartera (${portRet.toFixed(1)}% USD/año). Considerá aumentar exposición a activos de mayor retorno.`);
+    if((w.rv_loc+w.rv_ced)>0&&tol<20) warns.push(`⚠️ Tenés renta variable (${w.rv_loc+w.rv_ced}%) con tolerancia conservadora. Las acciones argentinas y CEDEARs pueden caer >30% en períodos de estrés.`);
+    if(fx==='full_usd'&&w.cer>0) warns.push(`⚠️ Cartera Full USD activa pero hay exposición CER residual. Revisá los pesos.`);
+    if(liqRV==='media'&&(w.rv_loc)>0) warns.push(`⚠️ Acciones de liquidez media incluidas. Algunas pueden tener spreads amplios — verificá volumen antes de operar.`);
+    if(warns.length){ warnEl.style.display='block'; warnEl.innerHTML=warns.join('<br>'); }
+    else warnEl.style.display='none';
 
-    // Claude insight
-    const SYS=`Sos un estratega de mercados de capitales argentino, experto en BYMA. Respondés en español rioplatense, de forma directa y profesional. Citás riesgos concretos del contexto macro argentino (cepo, inflación, riesgo soberano, política fiscal).`;
+    // ── Claude insight ──
+    const SYS_C=`Sos un estratega de mercados de capitales argentino, experto en BYMA. Respondés en español rioplatense, de forma directa y profesional. Citás riesgos concretos del contexto macro argentino (cepo, inflación, riesgo soberano, política fiscal).`;
     const prompt=`El cliente tiene USD ${cap.toLocaleString()} para invertir.
-Perfil: ${perfilMap[obj]||obj}, horizonte ${horMap[hor]||hor}, tolerancia ${tol}% drawdown max.
-Retorno objetivo: ${ret}% USD/año. Liquidez necesaria: ${liq}% en 12 meses.
-Allocation resultante:
-${keys.map(k=>`- ${exp[k].label}: ${w[k]}% (USD ${Math.round(cap*w[k]/100).toLocaleString()})`).join('\n')}
-Retorno esperado blend: ${portRet.toFixed(1)}% · Volatilidad estimada: ${portVol.toFixed(1)}% · Sharpe: ${sharpe.toFixed(2)}
-Análisis en 4-5 oraciones: (1) coherencia del perfil con la allocation, (2) riesgos macro argentinos que monitorear, (3) ajuste táctico recomendado para el contexto actual.`;
+Perfil: ${perfilMap[obj]||obj}, horizonte ${horMap[hor]||hor}, tolerancia ${tol}% drawdown max. Moneda: ${fxLabel[fx]}. RV: ${rvLabel[rv]}.
+Retorno objetivo: ${ret}% USD/año. Liquidez próxima: ${liq}%.
+Allocation:\n${activeKeys.map(k=>`- ${exp[k].label}: ${w[k]}% (USD ${Math.round(cap*w[k]/100).toLocaleString()})`).join('\n')}
+Retorno esperado blend: ${portRet.toFixed(1)}% · Volatilidad: ${portVol.toFixed(1)}% · Sharpe: ${sharpe.toFixed(2)}
+Análisis 4-5 oraciones: (1) coherencia del perfil con la allocation, (2) riesgos macro argentinos a monitorear, (3) ajuste táctico recomendado, (4) si hay renta variable, evaluá su rol en el contexto actual.`;
     document.getElementById('c-insight').textContent='Analizando cartera con IA...';
-    try{ const ai=await callClaude(SYS,prompt); document.getElementById('c-insight').innerHTML=ai.replace(/\n/g,'<br>'); }
-    catch(_){ document.getElementById('c-insight').textContent='(Insight no disponible - revisá tu API key)'; }
+    try{ const ai=await callClaude(SYS_C,prompt); document.getElementById('c-insight').innerHTML=ai.replace(/\n/g,'<br>'); }
+    catch(_){ document.getElementById('c-insight').textContent='(Insight no disponible — revisá tu API key de Anthropic)'; }
 
     resEl.style.display='flex';
     statusEl.textContent='⬡ cartera construida · '+new Date().toLocaleString('es-AR');
